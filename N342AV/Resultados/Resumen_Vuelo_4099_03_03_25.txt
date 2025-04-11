@@ -1,0 +1,107 @@
+📋 RESUMEN FINAL DEL VUELO
+
+Datos del vuelo obtenidos del LCS o manifiesto:
+Operador: AVIANCA CARGO
+Número de Vuelo: 4099 | Matrícula: N334QT
+Fecha: 03/03/25 | Hora: 03:15
+Ruta: MIA-EZE
+Revisión de Manifiesto: Rev.: 00
+
+OEW: 110510 kg
+BOW: 110870.0 kg
+Peso Total Carga: 57246.0 kg
+ZFW: 168116.0 kg, %MAC: 24.9%
+MZFW: 170000 kg
+TOW: 195916.0 kg, %MAC: 23.3%
+Maximum Allowed TOW: 233000 kg
+Trip Fuel: 18000.0 kg
+LW: 177916.0 kg, %MAC: 23.4%
+Maximum Allowed Landing Weight: 182000 kg
+Underload: 1884.0 kg
+MROW: 196116.0 kg
+
+Pista: 13
+Flaps Configuration: 1+F
+Temperatura: 12.0 °C
+Anti Ice: Off
+Air Conditioning: Off
+
+Lateral Imbalance: 4191.396
+Max Payload: MLW 61330.0, MTOW 94330.0, MZFW 59130.0 kg
+Pitch Trim: 5.85
+
+📊 Distribución de Combustible por Tanque (kg):
+Condición  Total Fuel (kg)  Outer Tank LH  Inner Tank LH  Central Tank  Inner Tank RH  Outer Tank RH  Trim Tank
+      TOW          27800.0         2850.0        11050.0           0.0        11050.0         2850.0        0.0
+       LW           9800.0          400.0         4500.0           0.0         4500.0          400.0        0.0
+
+Resumen de Alertas:
+✅ No se detectaron alertas.
+
+Manifiesto Actualizado con Posiciones y Momentos:
+  Number ULD Posición Asignada  Weight (KGS)   X-arm  Y-arm   Momento X Momento Y  Rotated
+  PMC393146R                53        1284.0  50.002    0.0   64202.568       0.0    False
+  PMH37019QT                JK        5436.0  35.438    0.0  192640.968       0.0    False
+  PMC393586R               41P        1354.0    43.1    0.0     58357.4       0.0    False
+  PMC40957QT               12P        1290.0  17.546    0.0    22634.34       0.0    False
+  PMC41294QT               21P        1544.0  22.473    0.0   34698.312       0.0    False
+  PMC41732QT                AB        1324.0  16.235    0.0    21495.14       0.0    False
+  PMC42425QT               31P        2562.0  37.958    0.0   97248.396       0.0    False
+  PMC42576QT               22P        2336.0  24.937    0.0   58252.832       0.0    False
+  PMC43132QT               32P        1536.0  40.421    0.0   62086.656       0.0    False
+  PMC43277QT               42P        3838.0   45.36    0.0   174091.68       0.0    False
+  PLA11358FF                11         918.0  15.433    0.0   14167.494       0.0    False
+  PAJ59627QT               PRR        1910.0   45.09   1.13     86121.9    2158.3    False
+  PMC390036R                RR        1238.0  47.922    0.0   59327.436       0.0    False
+  PMC40780QT               CER        1696.0  22.636  1.232   38390.656  2089.472    False
+  PMC40949QT               BCR        1824.0  19.436  1.232   35451.264  2247.168    False
+  PMC41100QT               14L        1474.0   20.36  0.806    30010.64  1188.044    False
+  PMC41689QT               CEL        1616.0  22.636 -1.232   36579.776 -1990.912    False
+  PMC41940QT               MPR        2182.0  41.864  1.232   91347.248  2688.224    False
+  PMC42263QT               PRL        1590.0   45.09  -1.13     71693.1   -1796.7    False
+  PMC42438QT               MPL        2662.0  41.864 -1.232  111441.968 -3279.584    False
+  PMC42490QT                EF        1732.0  25.836    0.0   44747.952       0.0    False
+  PMC42577QT               KML        1684.0  38.638 -1.232   65066.392 -2074.688    False
+  PMC42715QT               FHR        2456.0  29.037  1.232   71314.872  3025.792    False
+  PMC42836QT               KMR        1920.0  38.638  1.232    74184.96   2365.44    False
+  PMC43388QT               FHL        2022.0  29.037 -1.232   58712.814 -2491.104    False
+  PMC43465QT               BCL        1200.0  19.436 -1.232     23323.2   -1478.4    False
+  PMC43975QT               14R        1308.0   20.36 -0.806    26630.88 -1054.248    False
+  PMC44150QT               HJR        2106.0  32.237  1.232   67891.122  2594.592    False
+  PMC41347QT                SS        1700.0  50.385    0.0     85654.5       0.0    False
+  PMC41138QT                TT        1054.0  52.849    0.0   55702.846       0.0    False
+FlightWayKit                52         450.0  47.957    0.0    21580.65       0.0    False
+
+📊 Tabla de Validación de Pesos Acumulativos FWD y AFT (incluye Bulk):
+Posición Asignada   Región Order Peso Acumulativo (kg) Máximo Permitido (kg) Cumple
+               53      AFT    75                4038.0                  5991     Sí
+               JK      AFT    40               32400.0                 37521     Sí
+              41P      AFT    62               14418.0                 20742     Sí
+              12P      FWD     6                3532.0                  7105     Sí
+              21P      FWD    16               10882.0                 17196     Sí
+               AB      FWD     4                2242.0                  5149     Sí
+              31P      AFT    46               26964.0                 32713     Sí
+              22P      FWD    25               16530.0                 23706     Sí
+              32P      AFT    52               20798.0                 27135     Sí
+              42P      AFT    66                9564.0                 14763     Sí
+               11      FWD     1                 918.0                  4015     Sí
+              PRR      AFT    65               13064.0                 15398     Sí
+               RR      AFT    72                5726.0                  9524     Sí
+              CER      FWD    19               14194.0                 17631     Sí
+              BCR      FWD    10                6556.0                 10327     Sí
+              14L      FWD    13                9338.0                 11963     Sí
+              CEL      FWD    19               14194.0                 17631     Sí
+              MPR      AFT    57               19262.0                 23746     Sí
+              PRL      AFT    65               13064.0                 15398     Sí
+              MPL      AFT    57               19262.0                 23746     Sí
+               EF      FWD    28               18262.0                 25717     Sí
+              KML      AFT    49               24402.0                 31091     Sí
+              FHR Excluida     -                     -                     -    N/A
+              KMR      AFT    49               24402.0                 31091     Sí
+              FHL Excluida     -                     -                     -    N/A
+              BCL      FWD    10                6556.0                 10327     Sí
+              14R      FWD    13                9338.0                 11963     Sí
+              HJR Excluida     -                     -                     -    N/A
+               SS      AFT    76                2754.0                  5341     Sí
+               TT      AFT    78                1054.0                  2811     Sí
+               52      AFT    73                4488.0                  9465     Sí

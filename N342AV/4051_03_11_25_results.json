@@ -1,0 +1,14 @@
+{
+    "flight_info": {
+        "operador": "AVIANCA CARGO",
+        "numero_vuelo": "4051",
+        "matricula": "N336QT",
+        "fecha_vuelo": "03/11/25",
+        "hora_vuelo": "08:49",
+        "ruta_vuelo": "MIA-VIX",
+        "revision": "Rev.: 00",
+        "destino_inicial": "VIX"
+    },
+    "aircraft_info": {
+        "tail": "N342AV",
+        "mtoc": 
