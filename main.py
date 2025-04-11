@@ -8,12 +8,15 @@ from datetime import datetime
 from io import StringIO
 import copy
 
+# Configurar el modo wide para expandir el ancho de la página
+st.set_page_config(layout="wide")
+
 # Importar módulos
 from utils import load_csv_with_fallback, clasificar_base_refinada
 from calculations import sugerencias_final_con_fak, check_cumulative_weights, calculate_final_values
 from manual_calculation import manual_assignment
 from automatic_calculation import automatic_assignment
-from visualizations import print_final_summary
+from visualizations import print_final_summary, plot_aircraft_layout
 from N342AV_envelope import plot_cg_envelope
 from data_models import FlightData, AircraftData, CalculationState, FinalResults
 
@@ -25,14 +28,26 @@ aircraft_db_path = os.path.join(base_dir, "General_aircraft_database.csv")
 # Ruta del logo (ajusta según la ubicación de tu archivo)
 logo_path = os.path.join(base_dir, "logo.png")
 
+# Configurar el sidebar con el logo, título, mensaje y versión
+def setup_sidebar():
+    # Mostrar el logo en la parte superior del sidebar
+    if os.path.exists(logo_path):
+        st.sidebar.image(logo_path, width=150)  # Ajusta el ancho según el tamaño deseado
+    else:
+        st.sidebar.warning("No se encontró el archivo del logo en la ruta especificada.")
+
+    st.sidebar.title("Navegación")
+    page = st.sidebar.selectbox("Seleccione una página", ["Cálculo de Peso y Balance", "Gestión de Restricciones Temporales"])
+    
+    # Agregar mensaje "Creado por ..." y "Versión 0.1" en el sidebar
+    st.sidebar.markdown("---")  # Separador
+    st.sidebar.markdown("Creado por [Tu Nombre o Empresa]")
+    st.sidebar.markdown("Versión 0.1")
+    
+    return page
+
 # Función para la página de gestión de restricciones temporales
 def manage_temporary_restrictions():
-    # Mostrar el logo en la parte superior izquierda
-    if os.path.exists(logo_path):
-        st.image(logo_path, width=150)  # Ajusta el ancho según el tamaño deseado
-    else:
-        st.warning("No se encontró el archivo del logo en la ruta especificada.")
-
     st.title("Gestión de Restricciones Temporales")
     st.write("Modifique las restricciones temporales para las posiciones de cualquier aeronave (en kg). Deje en 0 para usar las restricciones predeterminadas.")
 
@@ -80,12 +95,6 @@ def manage_temporary_restrictions():
 
 # Función para la página de cálculo de peso y balance
 def weight_balance_calculation():
-    # Mostrar el logo en la parte superior izquierda
-    if os.path.exists(logo_path):
-        st.image(logo_path, width=150)  # Ajusta el ancho según el tamaño deseado
-    else:
-        st.warning("No se encontró el archivo del logo en la ruta especificada.")
-
     st.title("Sistema de Cálculo de Peso y Balance")
 
     # Sección 0: Importar un JSON calculado
@@ -646,307 +655,359 @@ def weight_balance_calculation():
     st.session_state.calculation_state.fuel_distribution = tank_fuel
     st.session_state.calculation_state.fuel_mode = fuel_mode
 
-    # Sección 2: Selección del Modo de Cálculo
-    st.subheader("Seleccione el Modo de Cálculo")
-    tab1, tab2 = st.tabs(["Cálculo Manual", "Cálculo Automático"])
+    # A partir de aquí, dividimos la página en dos columnas para alinear "Seleccione el Modo de Cálculo" con las gráficas
+    col_left, col_right = st.columns([1, 1])  # 1:1 para dar el mismo espacio a ambas columnas
 
-    with tab1:
-        manual_assignment(
-            st.session_state.calculation_state.df,
-            restricciones_df,
-            flight_data.tipo_carga,
-            exclusiones_df,
-            st.session_state.calculation_state.posiciones_usadas,
-            st.session_state.calculation_state.rotaciones,
-            tab_prefix="manual"
-        )
+    with col_left:
+        # Sección 2: Selección del Modo de Cálculo
+        st.subheader("Seleccione el Modo de Cálculo")
+        tab1, tab2 = st.tabs(["Cálculo Manual", "Cálculo Automático"])
 
-    with tab2:
-        automatic_assignment(
-            st.session_state.calculation_state.df,
-            restricciones_df,
-            flight_data.tipo_carga,
-            exclusiones_df,
-            st.session_state.calculation_state.posiciones_usadas,
-            st.session_state.calculation_state.rotaciones,
-            flight_data.destino_inicial,
-            st.session_state.calculation_state.bow,
-            st.session_state.calculation_state.bow_moment_x,
-            st.session_state.calculation_state.bow_moment_y,
-            flight_data.fuel_kg,
-            flight_data.taxi_fuel,
-            st.session_state.calculation_state.moment_x_fuel_tow,
-            st.session_state.calculation_state.moment_y_fuel_tow,
-            aircraft_data.lemac,
-            aircraft_data.mac_length,
-            cumulative_restrictions_fwd_df,
-            cumulative_restrictions_aft_df,
-            tab_prefix="auto"
-        )
+        with tab1:
+            manual_assignment(
+                st.session_state.calculation_state.df,
+                restricciones_df,
+                flight_data.tipo_carga,
+                exclusiones_df,
+                st.session_state.calculation_state.posiciones_usadas,
+                st.session_state.calculation_state.rotaciones,
+                tab_prefix="manual"
+            )
 
-    # Sección 3: Resultados
-    if st.session_state.calculation_state.df["Posición Asignada"].ne("").any():
-        st.subheader("Resultados del Cálculo")
-        df_asignados = st.session_state.calculation_state.df[st.session_state.calculation_state.df["Posición Asignada"] != ""]
-        st.write("Asignaciones Realizadas:", df_asignados)
+        with tab2:
+            automatic_assignment(
+                st.session_state.calculation_state.df,
+                restricciones_df,
+                flight_data.tipo_carga,
+                exclusiones_df,
+                st.session_state.calculation_state.posiciones_usadas,
+                st.session_state.calculation_state.rotaciones,
+                flight_data.destino_inicial,
+                st.session_state.calculation_state.bow,
+                st.session_state.calculation_state.bow_moment_x,
+                st.session_state.calculation_state.bow_moment_y,
+                flight_data.fuel_kg,
+                flight_data.taxi_fuel,
+                st.session_state.calculation_state.moment_x_fuel_tow,
+                st.session_state.calculation_state.moment_y_fuel_tow,
+                aircraft_data.lemac,
+                aircraft_data.mac_length,
+                cumulative_restrictions_fwd_df,
+                cumulative_restrictions_aft_df,
+                tab_prefix="auto"
+            )
 
-        # Cálculos finales
-        final_results = calculate_final_values(
-            df_asignados,
-            st.session_state.calculation_state.bow,
-            st.session_state.calculation_state.bow_moment_x,
-            st.session_state.calculation_state.bow_moment_y,
-            flight_data.fuel_kg,
-            flight_data.taxi_fuel,
-            flight_data.trip_fuel,
-            st.session_state.calculation_state.moment_x_fuel_tow,
-            st.session_state.calculation_state.moment_y_fuel_tow,
-            st.session_state.calculation_state.moment_x_fuel_lw,
-            st.session_state.calculation_state.moment_y_fuel_lw,
-            aircraft_data.lemac,
-            aircraft_data.mac_length,
-            aircraft_data.mtoc,
-            aircraft_data.mlw,
-            aircraft_data.mzfw,
-            flight_data.performance_tow,
-            trimset_df,
-            fuel_distribution=st.session_state.calculation_state.fuel_distribution,  # Pasar la distribución
-            fuel_mode=st.session_state.calculation_state.fuel_mode  # Pasar el modo
-        )
+        # Sección 3: Resultados
+        if st.session_state.calculation_state.df["Posición Asignada"].ne("").any():
+            st.subheader("Resultados del Cálculo")
+            df_asignados = st.session_state.calculation_state.df[st.session_state.calculation_state.df["Posición Asignada"] != ""]
+            st.write("Asignaciones Realizadas:", df_asignados)
 
-        # Validaciones de TOW y LW
-        if final_results["tow"] > aircraft_data.mtoc:
-            st.error(f"TOW ({final_results['tow']:.1f} kg) excede el MTOW ({aircraft_data.mtoc:.1f} kg).")
-        if performance_tow > 0 and final_results["tow"] > performance_tow:
-            st.error(f"TOW ({final_results['tow']:.1f} kg) excede el Performance TOW ({performance_tow:.1f} kg).")
+            # Cálculos finales
+            final_results = calculate_final_values(
+                df_asignados,
+                st.session_state.calculation_state.bow,
+                st.session_state.calculation_state.bow_moment_x,
+                st.session_state.calculation_state.bow_moment_y,
+                flight_data.fuel_kg,
+                flight_data.taxi_fuel,
+                flight_data.trip_fuel,
+                st.session_state.calculation_state.moment_x_fuel_tow,
+                st.session_state.calculation_state.moment_y_fuel_tow,
+                st.session_state.calculation_state.moment_x_fuel_lw,
+                st.session_state.calculation_state.moment_y_fuel_lw,
+                aircraft_data.lemac,
+                aircraft_data.mac_length,
+                aircraft_data.mtoc,
+                aircraft_data.mlw,
+                aircraft_data.mzfw,
+                flight_data.performance_tow,
+                trimset_df,
+                fuel_distribution=st.session_state.calculation_state.fuel_distribution,
+                fuel_mode=st.session_state.calculation_state.fuel_mode
+            )
 
-        if final_results["lw"] > aircraft_data.mlw:
-            st.error(f"LW ({final_results['lw']:.1f} kg) excede el MLW ({aircraft_data.mlw:.1f} kg).")
-        if performance_lw > 0 and final_results["lw"] > performance_lw:
-            st.error(f"LW ({final_results['lw']:.1f} kg) excede el Performance LW ({performance_lw:.1f} kg).")
+            # Validaciones de TOW y LW
+            if final_results["tow"] > aircraft_data.mtoc:
+                st.error(f"TOW ({final_results['tow']:.1f} kg) excede el MTOW ({aircraft_data.mtoc:.1f} kg).")
+            if performance_tow > 0 and final_results["tow"] > performance_tow:
+                st.error(f"TOW ({final_results['tow']:.1f} kg) excede el Performance TOW ({performance_tow:.1f} kg).")
 
-        complies, validation_df = check_cumulative_weights(df_asignados, cumulative_restrictions_fwd_df, cumulative_restrictions_aft_df)
+            if final_results["lw"] > aircraft_data.mlw:
+                st.error(f"LW ({final_results['lw']:.1f} kg) excede el MLW ({aircraft_data.mlw:.1f} kg).")
+            if performance_lw > 0 and final_results["lw"] > performance_lw:
+                st.error(f"LW ({final_results['lw']:.1f} kg) excede el Performance LW ({performance_lw:.1f} kg).")
 
-        # Mostrar resumen final
-        print_final_summary(
-            df_asignados,
-            flight_data.operador,
-            flight_data.numero_vuelo,
-            flight_data.matricula,
-            flight_data.fecha_vuelo,
-            flight_data.hora_vuelo,
-            flight_data.ruta_vuelo,
-            flight_data.revision,
-            aircraft_data.oew,
-            st.session_state.calculation_state.bow,
-            final_results["peso_total"],
-            final_results["zfw_peso"],
-            final_results["zfw_mac"],
-            aircraft_data.mzfw,
-            final_results["tow"],
-            final_results["tow_mac"],
-            aircraft_data.mtoc,
-            flight_data.trip_fuel,
-            final_results["lw"],
-            final_results["lw_mac"],
-            aircraft_data.mlw,
-            final_results["underload"],
-            final_results["mrow"],
-            flight_data.takeoff_runway,
-            flight_data.flaps_conf,
-            flight_data.temperature,
-            flight_data.anti_ice,
-            flight_data.air_condition,
-            final_results["lateral_imbalance"],
-            aircraft_data.mlw - st.session_state.calculation_state.bow - (flight_data.fuel_kg - flight_data.taxi_fuel - flight_data.trip_fuel),
-            aircraft_data.mtoc - st.session_state.calculation_state.bow - (flight_data.fuel_kg - flight_data.taxi_fuel),
-            aircraft_data.mzfw - st.session_state.calculation_state.bow,
-            final_results["pitch_trim"],
-            complies,
-            validation_df,
-            fuel_table,
-            flight_data.fuel_kg - flight_data.taxi_fuel,
-            flight_data.fuel_kg - flight_data.taxi_fuel - flight_data.trip_fuel,
-            aircraft_data.mrw_limit,
-            aircraft_data.lateral_imbalance_limit,
-            final_results["fuel_distribution"],  # Pasar la distribución de combustible
-            final_results["fuel_mode"]  # Pasar el modo de combustible
-        )
+            complies, validation_df = check_cumulative_weights(df_asignados, cumulative_restrictions_fwd_df, cumulative_restrictions_aft_df)
 
-        # Graficar envolvente de CG usando la función de N342AV_envelope.py
-        plt = plot_cg_envelope(
-            final_results["zfw_peso"],
-            final_results["zfw_mac"],
-            final_results["tow"],
-            final_results["tow_mac"],
-            final_results["lw"],
-            final_results["lw_mac"]
-        )
-        st.pyplot(plt)
+            # Mostrar resumen final
+            print_final_summary(
+                df_asignados,
+                flight_data.operador,
+                flight_data.numero_vuelo,
+                flight_data.matricula,
+                flight_data.fecha_vuelo,
+                flight_data.hora_vuelo,
+                flight_data.ruta_vuelo,
+                flight_data.revision,
+                aircraft_data.oew,
+                st.session_state.calculation_state.bow,
+                final_results["peso_total"],
+                final_results["zfw_peso"],
+                final_results["zfw_mac"],
+                aircraft_data.mzfw,
+                final_results["tow"],
+                final_results["tow_mac"],
+                aircraft_data.mtoc,
+                flight_data.trip_fuel,
+                final_results["lw"],
+                final_results["lw_mac"],
+                aircraft_data.mlw,
+                final_results["underload"],
+                final_results["mrow"],
+                flight_data.takeoff_runway,
+                flight_data.flaps_conf,
+                flight_data.temperature,
+                flight_data.anti_ice,
+                flight_data.air_condition,
+                final_results["lateral_imbalance"],
+                aircraft_data.mlw - st.session_state.calculation_state.bow - (flight_data.fuel_kg - flight_data.taxi_fuel - flight_data.trip_fuel),
+                aircraft_data.mtoc - st.session_state.calculation_state.bow - (flight_data.fuel_kg - flight_data.taxi_fuel),
+                aircraft_data.mzfw - st.session_state.calculation_state.bow,
+                final_results["pitch_trim"],
+                complies,
+                validation_df,
+                fuel_table,
+                flight_data.fuel_kg - flight_data.taxi_fuel,
+                flight_data.fuel_kg - flight_data.taxi_fuel - flight_data.trip_fuel,
+                aircraft_data.mrw_limit,
+                aircraft_data.lateral_imbalance_limit,
+                final_results["fuel_distribution"],
+                final_results["fuel_mode"]
+            )
 
-        # Guardar resultados
-        output_folder = os.path.join(base_dir, "Output")
-        os.makedirs(output_folder, exist_ok=True)
-        output_json = os.path.join(output_folder, f"{aircraft_data.tail}_{flight_data.numero_vuelo}_{fecha_vuelo_safe}_W&B.json")
-
-        # Convertir los DataFrames a diccionarios y asegurarse de que los valores sean serializables
-        manifest_data = st.session_state.calculation_state.df.to_dict(orient="records")
-        for record in manifest_data:
-            for key, value in record.items():
-                if isinstance(value, (np.int64, np.int32)):
-                    record[key] = int(value)
-                elif isinstance(value, (np.float64, np.float32)):
-                    record[key] = float(value)
-                elif isinstance(value, (list, np.ndarray)):
-                    if isinstance(value, np.ndarray):
-                        value = value.tolist()
-                    record[key] = [
-                        int(v) if isinstance(v, (np.int64, np.int32)) else
-                        float(v) if isinstance(v, (np.float64, np.float32)) else
-                        None if pd.isna(v) else v
-                        for v in value
-                    ]
-                elif pd.isna(value):
-                    record[key] = None
-
-        validation_data = validation_df.to_dict(orient="records")
-        for record in validation_data:
-            for key, value in record.items():
-                if isinstance(value, (np.int64, np.int32)):
-                    record[key] = int(value)
-                elif isinstance(value, (np.float64, np.float32)):
-                    record[key] = float(value)
-                elif isinstance(value, (list, np.ndarray)):
-                    if isinstance(value, np.ndarray):
-                        value = value.tolist()
-                    record[key] = [
-                        int(v) if isinstance(v, (np.int64, np.int32)) else
-                        float(v) if isinstance(v, (np.float64, np.float32)) else
-                        None if pd.isna(v) else v
-                        for v in value
-                    ]
-                elif pd.isna(value):
-                    record[key] = None
-
-        fuel_table_data = fuel_table.to_dict(orient="records")
-        for record in fuel_table_data:
-            for key, value in record.items():
-                if isinstance(value, (np.int64, np.int32)):
-                    record[key] = int(value)
-                elif isinstance(value, (np.float64, np.float32)):
-                    record[key] = float(value)
-                elif isinstance(value, (list, np.ndarray)):
-                    if isinstance(value, np.ndarray):
-                        value = value.tolist()
-                    record[key] = [
-                        int(v) if isinstance(v, (np.int64, np.int32)) else
-                        float(v) if isinstance(v, (np.float64, np.float32)) else
-                        None if pd.isna(v) else v
-                        for v in value
-                    ]
-                elif pd.isna(value):
-                    record[key] = None
-
-        data_to_save = {
-            "flight_info": {
-                "operador": flight_data.operador,
-                "numero_vuelo": flight_data.numero_vuelo,
-                "matricula": flight_data.matricula,
-                "fecha_vuelo": flight_data.fecha_vuelo,
-                "hora_vuelo": flight_data.hora_vuelo,
-                "ruta_vuelo": flight_data.ruta_vuelo,
-                "revision": flight_data.revision,
-                "destino_inicial": flight_data.destino_inicial
-            },
-            "aircraft_info": {
-                "tail": aircraft_data.tail,
-                "mtoc": float(aircraft_data.mtoc),
-                "mlw": float(aircraft_data.mlw),
-                "mzfw": float(aircraft_data.mzfw),
-                "oew": float(aircraft_data.oew),
-                "arm": float(aircraft_data.arm),
-                "moment_aircraft": float(aircraft_data.moment_aircraft),
-                "cg_aircraft": float(aircraft_data.cg_aircraft),
-                "lemac": float(aircraft_data.lemac),
-                "mac_length": float(aircraft_data.mac_length),
-                "mrw_limit": float(aircraft_data.mrw_limit),
-                "lateral_imbalance_limit": float(aircraft_data.lateral_imbalance_limit)
-            },
-            "calculated_values": {
-                "bow": float(st.session_state.calculation_state.bow),
-                "bow_moment_x": float(st.session_state.calculation_state.bow_moment_x),
-                "bow_moment_y": float(st.session_state.calculation_state.bow_moment_y),
-                "peso_total": float(final_results["peso_total"]),
-                "zfw_peso": float(final_results["zfw_peso"]),
-                "zfw_momento_x": float(final_results["zfw_momento_x"]),
-                "zfw_momento_y": float(final_results["zfw_momento_y"]),
-                "zfw_mac": float(final_results["zfw_mac"]),
-                "tow": float(final_results["tow"]),
-                "tow_momento_x": float(final_results["tow_momento_x"]),
-                "tow_momento_y": float(final_results["tow_momento_y"]),
-                "tow_mac": float(final_results["tow_mac"]),
-                "lw": float(final_results["lw"]),
-                "lw_momento_x": float(final_results["lw_momento_x"]),
-                "lw_momento_y": float(final_results["lw_momento_y"]),
-                "lw_mac": float(final_results["lw_mac"]),
-                "fuel_kg": float(flight_data.fuel_kg),
-                "taxi_fuel": float(flight_data.taxi_fuel),
-                "trip_fuel": float(flight_data.trip_fuel),
-                "moment_x_fuel_tow": float(st.session_state.calculation_state.moment_x_fuel_tow),
-                "moment_y_fuel_tow": float(st.session_state.calculation_state.moment_y_fuel_tow),
-                "moment_x_fuel_lw": float(st.session_state.calculation_state.moment_x_fuel_lw),
-                "moment_y_fuel_lw": float(st.session_state.calculation_state.moment_y_fuel_lw),
-                "lateral_imbalance": float(final_results["lateral_imbalance"]),
-                "underload": float(final_results["underload"]),
-                "mrow": float(final_results["mrow"]),
-                "pitch_trim": float(final_results["pitch_trim"]),
-                "fuel_mode": final_results["fuel_mode"],
-                "fuel_distribution": {k: float(v) for k, v in final_results["fuel_distribution"].items()}  # Incluir la distribución de combustible
-            },
-            "tipo_carga": flight_data.tipo_carga,
-            "manifest_data": manifest_data,
-            "posiciones_usadas": list(st.session_state.calculation_state.posiciones_usadas),
-            "rotaciones": st.session_state.calculation_state.rotaciones,
-            "validation_df": validation_data,
-            "fuel_table": fuel_table_data,
-            "passengers": {
-                "cockpit": int(flight_data.passengers_cockpit),
-                "supernumerary": int(flight_data.passengers_supernumerary),
-                "cockpit_weight": float(st.session_state.calculation_state.passengers_cockpit_total_weight),
-                "cockpit_moment_x": float(st.session_state.calculation_state.passengers_cockpit_total_moment_x),
-                "supernumerary_weight": float(st.session_state.calculation_state.passengers_supernumerary_total_weight),
-                "supernumerary_moment_x": float(st.session_state.calculation_state.passengers_supernumerary_total_moment_x)
-            },
-            "takeoff_conditions": {
-                "runway": flight_data.takeoff_runway,
-                "flaps_conf": flight_data.flaps_conf,
-                "rwy_condition": "Dry",
-                "wind_component": "0 kt",
-                "temperature": float(flight_data.temperature),
-                "air_condition": flight_data.air_condition,
-                "anti_ice": flight_data.anti_ice,
-                "qnh": float(flight_data.qnh),
-                "performance_tow": float(flight_data.performance_tow),
-                "performance_lw": float(flight_data.performance_lw)
+    # Columna derecha: Solo las gráficas, alineadas con "Seleccione el Modo de Cálculo" y flotantes
+    with col_right:
+        # Inyectar CSS para hacer las gráficas flotantes con position: fixed
+        st.markdown(
+            """
+            <style>
+            .fixed-graphs {
+                position: fixed;
+                top: 10px;
+                right: 10px;
+                width: 45%;  /* Ajusta el ancho para que coincida con la columna derecha */
+                max-height: 80vh;  /* Limita la altura para que no ocupe toda la pantalla */
+                overflow-y: auto;  /* Permite scroll vertical dentro del contenedor si las gráficas son muy altas */
+                z-index: 100;
+                padding: 10px;
+                background-color: #f8f9fa;
+                border-radius: 5px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             }
-        }
-
-        with open(output_json, "w", encoding="utf-8") as json_file:
-            json.dump(data_to_save, json_file, indent=4, ensure_ascii=False)
-        st.success(f"Resultados guardados en: {output_json}")
-
-        st.download_button(
-            label="Descargar Resultados (JSON)",
-            data=json.dumps(data_to_save, indent=4, ensure_ascii=False),
-            file_name=f"{aircraft_data.tail}_{flight_data.numero_vuelo}_{fecha_vuelo_safe}_W&B.json",
-            mime="application/json"
+            </style>
+            """,
+            unsafe_allow_html=True
         )
 
-# Menú lateral para navegar entre páginas
-st.sidebar.title("Navegación")
-page = st.sidebar.selectbox("Seleccione una página", ["Cálculo de Peso y Balance", "Gestión de Restricciones Temporales"])
+        # Crear un contenedor para las gráficas con la clase fixed-graphs
+        st.markdown('<div class="fixed-graphs">', unsafe_allow_html=True)
+
+        if st.session_state.calculation_state.df["Posición Asignada"].ne("").any():
+            # Graficar envolvente de CG (este sigue usando matplotlib)
+            plt = plot_cg_envelope(
+                final_results["zfw_peso"],
+                final_results["zfw_mac"],
+                final_results["tow"],
+                final_results["tow_mac"],
+                final_results["lw"],
+                final_results["lw_mac"]
+            )
+            st.pyplot(plt)
+
+            # Graficar el layout de la aeronave por bodega con Plotly
+            bodega_figures = plot_aircraft_layout(df_asignados, restricciones_df)
+            
+            # Mostrar cada gráfica por bodega
+            if bodega_figures["Main Deck"] is not None:
+                st.subheader("Main Deck (MD)")
+                st.plotly_chart(bodega_figures["Main Deck"], use_container_width=True)
+            else:
+                st.info("No hay posiciones asignadas en Main Deck (MD).")
+            
+            if bodega_figures["Lower Deck"] is not None:
+                st.subheader("Lower Deck (LDA, LDF, Bulk)")
+                st.plotly_chart(bodega_figures["Lower Deck"], use_container_width=True)
+            else:
+                st.info("No hay posiciones asignadas en Lower Deck (LDA, LDF, Bulk).")
+
+        # Cerrar el contenedor de las gráficas
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # Volver a la columna izquierda para el botón de descarga
+    with col_left:
+        if st.session_state.calculation_state.df["Posición Asignada"].ne("").any():
+            # Guardar resultados
+            output_folder = os.path.join(base_dir, "Output")
+            os.makedirs(output_folder, exist_ok=True)
+            output_json = os.path.join(output_folder, f"{aircraft_data.tail}_{flight_data.numero_vuelo}_{fecha_vuelo_safe}_W&B.json")
+
+            # Convertir los DataFrames a diccionarios y asegurarse de que los valores sean serializables
+            manifest_data = st.session_state.calculation_state.df.to_dict(orient="records")
+            for record in manifest_data:
+                for key, value in record.items():
+                    if isinstance(value, (np.int64, np.int32)):
+                        record[key] = int(value)
+                    elif isinstance(value, (np.float64, np.float32)):
+                        record[key] = float(value)
+                    elif isinstance(value, (list, np.ndarray)):
+                        if isinstance(value, np.ndarray):
+                            value = value.tolist()
+                        record[key] = [
+                            int(v) if isinstance(v, (np.int64, np.int32)) else
+                            float(v) if isinstance(v, (np.float64, np.float32)) else
+                            None if pd.isna(v) else v
+                            for v in value
+                        ]
+                    elif pd.isna(value):
+                        record[key] = None
+
+            validation_data = validation_df.to_dict(orient="records")
+            for record in validation_data:
+                for key, value in record.items():
+                    if isinstance(value, (np.int64, np.int32)):
+                        record[key] = int(value)
+                    elif isinstance(value, (np.float64, np.float32)):
+                        record[key] = float(value)
+                    elif isinstance(value, (list, np.ndarray)):
+                        if isinstance(value, np.ndarray):
+                            value = value.tolist()
+                        record[key] = [
+                            int(v) if isinstance(v, (np.int64, np.int32)) else
+                            float(v) if isinstance(v, (np.float64, np.float32)) else
+                            None if pd.isna(v) else v
+                            for v in value
+                        ]
+                    elif pd.isna(value):
+                        record[key] = None
+
+            fuel_table_data = fuel_table.to_dict(orient="records")
+            for record in fuel_table_data:
+                for key, value in record.items():
+                    if isinstance(value, (np.int64, np.int32)):
+                        record[key] = int(value)
+                    elif isinstance(value, (np.float64, np.float32)):
+                        record[key] = float(value)
+                    elif isinstance(value, (list, np.ndarray)):
+                        if isinstance(value, np.ndarray):
+                            value = value.tolist()
+                        record[key] = [
+                            int(v) if isinstance(v, (np.int64, np.int32)) else
+                            float(v) if isinstance(v, (np.float64, np.float32)) else
+                            None if pd.isna(v) else v
+                            for v in value
+                        ]
+                    elif pd.isna(value):
+                        record[key] = None
+
+            data_to_save = {
+                "flight_info": {
+                    "operador": flight_data.operador,
+                    "numero_vuelo": flight_data.numero_vuelo,
+                    "matricula": flight_data.matricula,
+                    "fecha_vuelo": flight_data.fecha_vuelo,
+                    "hora_vuelo": flight_data.hora_vuelo,
+                    "ruta_vuelo": flight_data.ruta_vuelo,
+                    "revision": flight_data.revision,
+                    "destino_inicial": flight_data.destino_inicial
+                },
+                "aircraft_info": {
+                    "tail": aircraft_data.tail,
+                    "mtoc": float(aircraft_data.mtoc),
+                    "mlw": float(aircraft_data.mlw),
+                    "mzfw": float(aircraft_data.mzfw),
+                    "oew": float(aircraft_data.oew),
+                    "arm": float(aircraft_data.arm),
+                    "moment_aircraft": float(aircraft_data.moment_aircraft),
+                    "cg_aircraft": float(aircraft_data.cg_aircraft),
+                    "lemac": float(aircraft_data.lemac),
+                    "mac_length": float(aircraft_data.mac_length),
+                    "mrw_limit": float(aircraft_data.mrw_limit),
+                    "lateral_imbalance_limit": float(aircraft_data.lateral_imbalance_limit)
+                },
+                "calculated_values": {
+                    "bow": float(st.session_state.calculation_state.bow),
+                    "bow_moment_x": float(st.session_state.calculation_state.bow_moment_x),
+                    "bow_moment_y": float(st.session_state.calculation_state.bow_moment_y),
+                    "peso_total": float(final_results["peso_total"]),
+                    "zfw_peso": float(final_results["zfw_peso"]),
+                    "zfw_momento_x": float(final_results["zfw_momento_x"]),
+                    "zfw_momento_y": float(final_results["zfw_momento_y"]),
+                    "zfw_mac": float(final_results["zfw_mac"]),
+                    "tow": float(final_results["tow"]),
+                    "tow_momento_x": float(final_results["tow_momento_x"]),
+                    "tow_momento_y": float(final_results["tow_momento_y"]),
+                    "tow_mac": float(final_results["tow_mac"]),
+                    "lw": float(final_results["lw"]),
+                    "lw_momento_x": float(final_results["lw_momento_x"]),
+                    "lw_momento_y": float(final_results["lw_momento_y"]),
+                    "lw_mac": float(final_results["lw_mac"]),
+                    "fuel_kg": float(flight_data.fuel_kg),
+                    "taxi_fuel": float(flight_data.taxi_fuel),
+                    "trip_fuel": float(flight_data.trip_fuel),
+                    "moment_x_fuel_tow": float(st.session_state.calculation_state.moment_x_fuel_tow),
+                    "moment_y_fuel_tow": float(st.session_state.calculation_state.moment_y_fuel_tow),
+                    "moment_x_fuel_lw": float(st.session_state.calculation_state.moment_x_fuel_lw),
+                    "moment_y_fuel_lw": float(st.session_state.calculation_state.moment_y_fuel_lw),
+                    "lateral_imbalance": float(final_results["lateral_imbalance"]),
+                    "underload": float(final_results["underload"]),
+                    "mrow": float(final_results["mrow"]),
+                    "pitch_trim": float(final_results["pitch_trim"]),
+                    "fuel_mode": final_results["fuel_mode"],
+                    "fuel_distribution": {k: float(v) for k, v in final_results["fuel_distribution"].items()}
+                },
+                "tipo_carga": flight_data.tipo_carga,
+                "manifest_data": manifest_data,
+                "posiciones_usadas": list(st.session_state.calculation_state.posiciones_usadas),
+                "rotaciones": st.session_state.calculation_state.rotaciones,
+                "validation_df": validation_data,
+                "fuel_table": fuel_table_data,
+                "passengers": {
+                    "cockpit": int(flight_data.passengers_cockpit),
+                    "supernumerary": int(flight_data.passengers_supernumerary),
+                    "cockpit_weight": float(st.session_state.calculation_state.passengers_cockpit_total_weight),
+                    "cockpit_moment_x": float(st.session_state.calculation_state.passengers_cockpit_total_moment_x),
+                    "supernumerary_weight": float(st.session_state.calculation_state.passengers_supernumerary_total_weight),
+                    "supernumerary_moment_x": float(st.session_state.calculation_state.passengers_supernumerary_total_moment_x)
+                },
+                "takeoff_conditions": {
+                    "runway": flight_data.takeoff_runway,
+                    "flaps_conf": flight_data.flaps_conf,
+                    "rwy_condition": "Dry",
+                    "wind_component": "0 kt",
+                    "temperature": float(flight_data.temperature),
+                    "air_condition": flight_data.air_condition,
+                    "anti_ice": flight_data.anti_ice,
+                    "qnh": float(flight_data.qnh),
+                    "performance_tow": float(flight_data.performance_tow),
+                    "performance_lw": float(flight_data.performance_lw)
+                }
+            }
+
+            with open(output_json, "w", encoding="utf-8") as json_file:
+                json.dump(data_to_save, json_file, indent=4, ensure_ascii=False)
+            st.success(f"Resultados guardados en: {output_json}")
+
+            st.download_button(
+                label="Descargar Resultados (JSON)",
+                data=json.dumps(data_to_save, indent=4, ensure_ascii=False),
+                file_name=f"{aircraft_data.tail}_{flight_data.numero_vuelo}_{fecha_vuelo_safe}_W&B.json",
+                mime="application/json"
+            )
 
 # Mostrar la página seleccionada
+page = setup_sidebar()
+
 if page == "Cálculo de Peso y Balance":
     weight_balance_calculation()
 elif page == "Gestión de Restricciones Temporales":

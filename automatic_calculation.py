@@ -320,7 +320,7 @@ def automatic_assignment(df, restricciones_df, tipo_carga, exclusiones_df, posic
     st.write("### Cálculo Automático")
     st.write("Se asignarán todas las posiciones automáticamente según la estrategia seleccionada.")
     
-    optimizacion = st.selectbox("Seleccione la estrategia de optimización", ["Destino", "CG", "Ambos"], key=f"{tab_prefix}_optimizacion")
+    optimizacion = st.selectbox("Seleccione la estrategia de optimización", ["CG", "Destino", "Ambos"], key=f"{tab_prefix}_optimizacion")
     
     if st.button("Ejecutar Cálculo Automático", key=f"{tab_prefix}_ejecutar"):
         # Asignar pallets con una sola posición sugerida al inicio

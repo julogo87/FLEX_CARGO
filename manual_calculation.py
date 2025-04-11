@@ -163,118 +163,118 @@ def manual_assignment(df, restricciones_df, tipo_carga, exclusiones_df, posicion
                             st.rerun()  # Refrescar la interfaz
 
     # Nueva sección para mostrar las gráficas por bodega
-    st.write("### Distribución de Pallets por Bodega")
-    st.write("Gráficas que muestran la ubicación de los pallets asignados en cada bodega.")
+    #st.write("### Distribución de Pallets por Bodega")
+    #st.write("Gráficas que muestran la ubicación de los pallets asignados en cada bodega.")
 
     # Filtrar pallets asignados (que tienen una bodega asignada)
-    pallets_asignados = df[df["Posición Asignada"] != ""].copy()
+    #pallets_asignados = df[df["Posición Asignada"] != ""].copy()
     
-    if pallets_asignados.empty:
-        st.info("No hay pallets asignados para mostrar en las bodegas.")
-    else:
+    #if pallets_asignados.empty:
+        #st.info("No hay pallets asignados para mostrar en las bodegas.")
+    #else:
         # Obtener las bodegas únicas
-        bodegas = pallets_asignados["Bodega"].unique()
+        #bodegas = pallets_asignados["Bodega"].unique()
         
         # Primera fila: LDF, LDA, Bulk
-        col1, col2, col3 = st.columns(3)
+        #col1, col2, col3 = st.columns(3)
         
         # Función para generar la gráfica de una bodega
-        def plot_bodega(bodega, pallets_bodega):
-            fig, ax = plt.subplots(figsize=(5, 3))  # Tamaño más pequeño para que quepan en las columnas
+        #def plot_bodega(bodega, pallets_bodega):
+            #fig, ax = plt.subplots(figsize=(5, 3))  # Tamaño más pequeño para que quepan en las columnas
             
             # Colores para los pallets (cíclicos)
-            colors = plt.cm.tab20.colors  # Usar una paleta de colores predefinida
+            #colors = plt.cm.tab20.colors  # Usar una paleta de colores predefinida
             
-            for idx, row in pallets_bodega.iterrows():
-                uld = row["Number ULD"]
-                x_arm = row["X-arm"]
-                y_arm = row["Y-arm"]
+            #for idx, row in pallets_bodega.iterrows():
+                #uld = row["Number ULD"]
+                #x_arm = row["X-arm"]
+                #y_arm = row["Y-arm"]
                 
                 # Obtener las dimensiones del baseplate (en pulgadas) y convertirlas a metros
-                base_size = row["Pallet Base Size"]  # Ejemplo: "96x125"
-                if base_size:
-                    try:
-                        width_inch, length_inch = map(float, base_size.split("x"))
-                        # Convertir de pulgadas a metros (1 pulgada = 0.0254 metros)
-                        width_m = width_inch * 0.0254
-                        length_m = length_inch * 0.0254
-                    except:
-                        width_m, length_m = 1.0, 1.0  # Valores por defecto si no se pueden parsear
-                else:
-                    width_m, length_m = 1.0, 1.0  # Valores por defecto si no hay base_size
+                #base_size = row["Pallet Base Size"]  # Ejemplo: "96x125"
+                #if base_size:
+        #             try:
+        #                 width_inch, length_inch = map(float, base_size.split("x"))
+        #                 # Convertir de pulgadas a metros (1 pulgada = 0.0254 metros)
+        #                 width_m = width_inch * 0.0254
+        #                 length_m = length_inch * 0.0254
+        #             except:
+        #                 width_m, length_m = 1.0, 1.0  # Valores por defecto si no se pueden parsear
+        #         else:
+        #             width_m, length_m = 1.0, 1.0  # Valores por defecto si no hay base_size
                 
-                # Calcular las coordenadas del rectángulo (centrado en X-arm, Y-arm)
-                x_min = x_arm - (width_m / 2)
-                y_min = y_arm - (length_m / 2)
+        #         # Calcular las coordenadas del rectángulo (centrado en X-arm, Y-arm)
+        #         x_min = x_arm - (width_m / 2)
+        #         y_min = y_arm - (length_m / 2)
                 
-                # Dibujar el rectángulo
-                color = colors[idx % len(colors)]  # Seleccionar un color cíclico
-                rect = plt.Rectangle((x_min, y_min), width_m, length_m, edgecolor='black', facecolor=color, alpha=0.6)
-                ax.add_patch(rect)
+        #         # Dibujar el rectángulo
+        #         color = colors[idx % len(colors)]  # Seleccionar un color cíclico
+        #         rect = plt.Rectangle((x_min, y_min), width_m, length_m, edgecolor='black', facecolor=color, alpha=0.6)
+        #         ax.add_patch(rect)
                 
-                # Añadir el texto con el Number ULD en el centro del rectángulo
-                ax.text(x_arm, y_arm, uld, ha='center', va='center', fontsize=8, color='black', weight='bold')
+        #         # Añadir el texto con el Number ULD en el centro del rectángulo
+        #         ax.text(x_arm, y_arm, uld, ha='center', va='center', fontsize=8, color='black', weight='bold')
             
-            # Configurar los ejes
-            ax.set_xlabel("X-arm (metros)")
-            ax.set_ylabel("Y-arm (metros)")
-            ax.set_title(f"Bodega {bodega}")
-            ax.grid(True, linestyle='--', alpha=0.7)
+        #     # Configurar los ejes
+        #     ax.set_xlabel("X-arm (metros)")
+        #     ax.set_ylabel("Y-arm (metros)")
+        #     ax.set_title(f"Bodega {bodega}")
+        #     ax.grid(True, linestyle='--', alpha=0.7)
             
-            # Ajustar los límites de los ejes para que todos los pallets sean visibles
-            if not pallets_bodega.empty:
-                x_min = pallets_bodega["X-arm"].min() - 2
-                x_max = pallets_bodega["X-arm"].max() + 2
-                y_min = pallets_bodega["Y-arm"].min() - 2
-                y_max = pallets_bodega["Y-arm"].max() + 2
-                # Asegurar que los rangos de los ejes sean simétricos para mantener la misma escala
-                max_range = max(x_max - x_min, y_max - y_min)
-                x_center = (x_max + x_min) / 2
-                y_center = (y_max + y_min) / 2
-                ax.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
-                ax.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
+        #     # Ajustar los límites de los ejes para que todos los pallets sean visibles
+        #     if not pallets_bodega.empty:
+        #         x_min = pallets_bodega["X-arm"].min() - 2
+        #         x_max = pallets_bodega["X-arm"].max() + 2
+        #         y_min = pallets_bodega["Y-arm"].min() - 2
+        #         y_max = pallets_bodega["Y-arm"].max() + 2
+        #         # Asegurar que los rangos de los ejes sean simétricos para mantener la misma escala
+        #         max_range = max(x_max - x_min, y_max - y_min)
+        #         x_center = (x_max + x_min) / 2
+        #         y_center = (y_max + y_min) / 2
+        #         ax.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
+        #         ax.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
             
-            # Forzar la misma escala horizontal y vertical
-            ax.set_aspect('equal', adjustable='box')
+        #     # Forzar la misma escala horizontal y vertical
+        #     ax.set_aspect('equal', adjustable='box')
             
-            return fig
+        #     return fig
 
-        # Mostrar LDF (Lower Deck Forward) en la primera columna
-        with col1:
-            if "LDF" in bodegas:
-                pallets_ldf = pallets_asignados[pallets_asignados["Bodega"] == "LDF"]
-                fig_ldf = plot_bodega("LDF", pallets_ldf)
-                st.pyplot(fig_ldf)
-            else:
-                st.write("#### Bodega: LDF")
-                st.info("No hay pallets asignados en LDF.")
+        # # Mostrar LDF (Lower Deck Forward) en la primera columna
+        # with col1:
+        #     if "LDF" in bodegas:
+        #         pallets_ldf = pallets_asignados[pallets_asignados["Bodega"] == "LDF"]
+        #         fig_ldf = plot_bodega("LDF", pallets_ldf)
+        #         st.pyplot(fig_ldf)
+        #     else:
+        #         st.write("#### Bodega: LDF")
+        #         st.info("No hay pallets asignados en LDF.")
 
-        # Mostrar LDA (Lower Deck Aft) en la segunda columna
-        with col2:
-            if "LDA" in bodegas:
-                pallets_lda = pallets_asignados[pallets_asignados["Bodega"] == "LDA"]
-                fig_lda = plot_bodega("LDA", pallets_lda)
-                st.pyplot(fig_lda)
-            else:
-                st.write("#### Bodega: LDA")
-                st.info("No hay pallets asignados en LDA.")
+        # # Mostrar LDA (Lower Deck Aft) en la segunda columna
+        # with col2:
+        #     if "LDA" in bodegas:
+        #         pallets_lda = pallets_asignados[pallets_asignados["Bodega"] == "LDA"]
+        #         fig_lda = plot_bodega("LDA", pallets_lda)
+        #         st.pyplot(fig_lda)
+        #     else:
+        #         st.write("#### Bodega: LDA")
+        #         st.info("No hay pallets asignados en LDA.")
 
-        # Mostrar Bulk en la tercera columna
-        with col3:
-            if "BULK" in bodegas:
-                pallets_bulk = pallets_asignados[pallets_asignados["Bodega"] == "BULK"]
-                fig_bulk = plot_bodega("BULK", pallets_bulk)
-                st.pyplot(fig_bulk)
-            else:
-                st.write("#### Bodega: BULK")
-                st.info("No hay pallets asignados en BULK.")
+        # # Mostrar Bulk en la tercera columna
+        # with col3:
+        #     if "BULK" in bodegas:
+        #         pallets_bulk = pallets_asignados[pallets_asignados["Bodega"] == "BULK"]
+        #         fig_bulk = plot_bodega("BULK", pallets_bulk)
+        #         st.pyplot(fig_bulk)
+        #     else:
+        #         st.write("#### Bodega: BULK")
+        #         st.info("No hay pallets asignados en BULK.")
 
-        # Mostrar MD (Main Deck) en una fila separada debajo
-        if "MD" in bodegas:
-            st.write("#### Bodega: MD")
-            pallets_md = pallets_asignados[pallets_asignados["Bodega"] == "MD"]
-            fig_md = plot_bodega("MD", pallets_md)
-            st.pyplot(fig_md)
-        else:
-            st.write("#### Bodega: MD")
-            st.info("No hay pallets asignados en MD.")
+        # # Mostrar MD (Main Deck) en una fila separada debajo
+        # if "MD" in bodegas:
+        #     st.write("#### Bodega: MD")
+        #     pallets_md = pallets_asignados[pallets_asignados["Bodega"] == "MD"]
+        #     fig_md = plot_bodega("MD", pallets_md)
+        #     st.pyplot(fig_md)
+        # else:
+        #     st.write("#### Bodega: MD")
+        #     st.info("No hay pallets asignados en MD.")
