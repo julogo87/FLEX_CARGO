@@ -1,4 +1,3 @@
-# data_models.py
 from dataclasses import dataclass
 from typing import Dict, Set, Any
 
@@ -17,6 +16,7 @@ class FlightData:
     taxi_fuel: float
     tipo_carga: str
     takeoff_runway: str
+    rwy_condition: str
     flaps_conf: str
     temperature: float
     air_condition: str
@@ -58,8 +58,8 @@ class CalculationState:
     passengers_cockpit_total_moment_x: float
     passengers_supernumerary_total_weight: float
     passengers_supernumerary_total_moment_x: float
-    fuel_distribution: Dict[str, float]  # Nuevo campo para la distribución de combustible
-    fuel_mode: str  # Nuevo campo para el modo de combustible
+    fuel_distribution: Dict[str, float]
+    fuel_mode: str
 
 @dataclass
 class FinalResults:
@@ -80,5 +80,5 @@ class FinalResults:
     lateral_imbalance: float
     underload: float
     pitch_trim: float
-    fuel_distribution: Dict[str, float]  # Nuevo campo
-    fuel_mode: str  # Nuevo campo
+    fuel_distribution: Dict[str, float]
+    fuel_mode: str
