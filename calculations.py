@@ -29,10 +29,10 @@ def sugerencias_final_con_fak(row, restricciones_df, tipo_carga):
 
     if "FAK" in notas or "FLIGHT" in notas or "FAK" in uld or "FLIGHT" in uld:
         return filter_positions(["51", "52", "53"])
-    if contour not in ["LD", "SBS", "BULK", "FAK", "", "P9", "CL", "CT"]:
+    if contour not in ["SBS", "BULK", "FAK", "", "CL", "CT"] and not contour.startswith("LD"):
         return filter_positions([contour])
     if contour == "P9" or "P9" in notas:
-        return filter_positions(["11", "12", "13", "14", "21", "22", "23", "31", "32", "33", "41", "42", "43"])
+        return filter_positions(["11"])  # P9 solo en posición 11
     if contour == "BULK":
         return filter_positions(["51", "52", "53"])
     if "CL" in notas or contour == "CL":
@@ -51,10 +51,11 @@ def sugerencias_final_con_fak(row, restricciones_df, tipo_carga):
         pos_sbs = restricciones_df[
             (restricciones_df["Position"].str.len() == 3) &
             (restricciones_df["Position"].str.endswith(("L", "R"))) &
-            (~restricciones_df["Position"].isin(["CFG", "FJG", "JLG", "CFR", "FJR", "JLR", "LPR"]))
+            (~restricciones_df["Position"].isin(["CFG", "FJG", "JLG", "CFR", "FJR", "JLR", "LPR"])) &
+            (restricciones_df["Bodega"] == "MD")  # Solo Main Deck
         ]
         return filter_positions(pos_sbs["Position"].tolist())
-    if contour == "LD":
+    if contour == "LD" or contour.startswith("LD"):
         pos_ld = restricciones_df[
             (restricciones_df["Bodega"].isin(["LDF", "LDA"])) &
             (restricciones_df["Pallet_Base_size_Allowed"].str.contains(base_code))
