@@ -1,4 +1,3 @@
-# automatic_calculation.py
 import streamlit as st
 from calculations import update_position_values, check_cumulative_weights
 
@@ -19,7 +18,6 @@ def assign_single_position_pallets(df, restricciones_df, tipo_carga, exclusiones
             if pos not in posiciones_usadas and update_position_values(df, idx, pos, restricciones_df, tipo_carga, posiciones_usadas, exclusiones_df):
                 posiciones_usadas.add(pos)
                 df.at[idx, "Rotated"] = False
-                st.write(f"✅ Asignado automáticamente {row['Number ULD']} a la única posición sugerida {pos}")
 
 def strategy_by_destination(df, restricciones_df, tipo_carga, exclusiones_df, posiciones_usadas, destino_inicial, bow, bow_moment_x, bow_moment_y, fuel_kg, taxi_fuel, moment_x_fuel_tow, moment_y_fuel_tow, lemac, mac_length):
     """
@@ -261,10 +259,9 @@ def try_all_strategies(df, restricciones_df, tipo_carga, exclusiones_df, posicio
     max_attempts = 3
     attempt = 1
     unassigned_pallets = []
-    rotaciones = {}  # Inicializar rotaciones al inicio
+    rotaciones = {}
     
     while df["Posición Asignada"].eq("").any() and attempt <= max_attempts:
-        st.write(f"\nIntento {attempt} de asignación automática con optimización por {optimizacion}")
         strategy = strategies[optimizacion]
         temp_posiciones_usadas, temp_rotaciones = strategy(
             df, restricciones_df, tipo_carga, exclusiones_df, posiciones_usadas.copy(),
@@ -272,12 +269,11 @@ def try_all_strategies(df, restricciones_df, tipo_carga, exclusiones_df, posicio
             moment_x_fuel_tow, moment_y_fuel_tow, lemac, mac_length
         )
         posiciones_usadas.update(temp_posiciones_usadas)
-        rotaciones.update(temp_rotaciones)  # Actualizar rotaciones con los valores devueltos
+        rotaciones.update(temp_rotaciones)
         
         df_asignados = df[df["Posición Asignada"] != ""].copy()
         complies, _ = check_cumulative_weights(df_asignados, cumulative_restrictions_fwd_df, cumulative_restrictions_aft_df)
         if not complies:
-            st.write("⚠️ Configuración no cumple con restricciones acumulativas. Revirtiendo y probando otra estrategia.")
             df.loc[df.index.isin(df_asignados.index), "Posición Asignada"] = ""
             posiciones_usadas = set(df[df["Posición Asignada"] != ""]["Posición Asignada"].tolist())
             rotaciones = {k: v for k, v in rotaciones.items() if k in df[df["Posición Asignada"] != ""]["Number ULD"].values}
@@ -286,7 +282,6 @@ def try_all_strategies(df, restricciones_df, tipo_carga, exclusiones_df, posicio
             unassigned_pallets = [(row["Number ULD"], row["Weight (KGS)"]) for _, row in df[df["Posición Asignada"] == ""].iterrows()]
             if not unassigned_pallets:
                 break
-            st.write(f"Pallets sin asignar: {len(unassigned_pallets)}. Intentando otra estrategia.")
             optimizacion = list(strategies.keys())[(list(strategies.keys()).index(optimizacion) + 1) % 3]
         attempt += 1
     
@@ -323,6 +318,10 @@ def automatic_assignment(df, restricciones_df, tipo_carga, exclusiones_df, posic
     optimizacion = st.selectbox("Seleccione la estrategia de optimización", ["CG", "Destino", "Ambos"], key=f"{tab_prefix}_optimizacion")
     
     if st.button("Ejecutar Cálculo Automático", key=f"{tab_prefix}_ejecutar"):
+        # Mostrar mensaje de procesamiento
+        status_placeholder = st.empty()
+        status_placeholder.info("Procesando...")
+        
         # Asignar pallets con una sola posición sugerida al inicio
         assign_single_position_pallets(df, restricciones_df, tipo_carga, exclusiones_df, posiciones_usadas)
         
@@ -334,8 +333,12 @@ def automatic_assignment(df, restricciones_df, tipo_carga, exclusiones_df, posic
             cumulative_restrictions_fwd_df, cumulative_restrictions_aft_df
         )
         
-        if unassigned:
-            st.warning(f"{len(unassigned)} pallets no pudieron ser asignados automáticamente: {unassigned}")
+        # Limpiar mensaje de procesamiento
+        status_placeholder.empty()
+        
+        # Mostrar resultado
+        if not unassigned:
+            st.success("✅ Se pudieron asignar todos los pallets.")
         else:
-            st.success("Todos los pallets han sido asignados automáticamente.")
-        st.write("Resultado:", df[df["Posición Asignada"] != ""])
+            unassigned_uld = [uld for uld, _ in unassigned]
+            st.warning(f"⚠️ Quedaron pallets por asignar: {', '.join(unassigned_uld)}")
