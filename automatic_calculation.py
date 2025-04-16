@@ -47,9 +47,8 @@ def strategy_by_destination(df, restricciones_df, tipo_carga, exclusiones_df, po
     df_unassigned["Matches_Destination"] = df_unassigned["ULD Final Destination"].str.strip().str.upper() == destino_inicial.upper()
     df_unassigned = df_unassigned.sort_values(by=["Matches_Destination", "Weight (KGS)"], ascending=[False, False])
     
-    # Definir posiciones preferidas para destino inicial
-    md_positions = restricciones_df[restricciones_df["Bodega"] == "MD"]["Position"].sort_values().tolist()  # De adelante hacia atrás
-    lda_positions = restricciones_df[restricciones_df["Bodega"] == "LDA"]["Position"].sort_values(ascending=False).tolist()  # De atrás hacia adelante
+    md_positions = restricciones_df[restricciones_df["Bodega"] == "MD"]["Position"].sort_values().tolist()
+    lda_positions = restricciones_df[restricciones_df["Bodega"] == "LDA"]["Position"].sort_values(ascending=False).tolist()
     preferred_positions_initial = md_positions + lda_positions
     
     rotaciones = {}
@@ -68,7 +67,6 @@ def strategy_by_destination(df, restricciones_df, tipo_carga, exclusiones_df, po
                 df.at[idx, "Rotated"] = False
                 continue
         
-        # Si coincide con el destino inicial, priorizar MD (adelante) y LDA (atrás)
         if matches_dest:
             preferred_positions = [pos for pos in preferred_positions_initial if pos in sugeridas and pos not in posiciones_usadas]
         else:
@@ -110,7 +108,7 @@ def strategy_by_cg(df, restricciones_df, tipo_carga, exclusiones_df, posiciones_
         tuple: (posiciones_usadas, rotaciones)
     """
     df_unassigned = df[df["Posición Asignada"] == ""].sort_values(by="Weight (KGS)", ascending=False).copy()
-    target_mac = 25.0
+    target_mac = 30.0
     rotaciones = {}
     
     for idx, row in df_unassigned.iterrows():
@@ -318,14 +316,11 @@ def automatic_assignment(df, restricciones_df, tipo_carga, exclusiones_df, posic
     optimizacion = st.selectbox("Seleccione la estrategia de optimización", ["CG", "Destino", "Ambos"], key=f"{tab_prefix}_optimizacion")
     
     if st.button("Ejecutar Cálculo Automático", key=f"{tab_prefix}_ejecutar"):
-        # Mostrar mensaje de procesamiento
         status_placeholder = st.empty()
         status_placeholder.info("Procesando...")
         
-        # Asignar pallets con una sola posición sugerida al inicio
         assign_single_position_pallets(df, restricciones_df, tipo_carga, exclusiones_df, posiciones_usadas)
         
-        # Ejecutar las estrategias de asignación
         posiciones_usadas, rotaciones, unassigned = try_all_strategies(
             df, restricciones_df, tipo_carga, exclusiones_df, posiciones_usadas, destino_inicial,
             optimizacion.lower(), bow, bow_moment_x, bow_moment_y, fuel_kg, taxi_fuel,
@@ -333,12 +328,16 @@ def automatic_assignment(df, restricciones_df, tipo_carga, exclusiones_df, posic
             cumulative_restrictions_fwd_df, cumulative_restrictions_aft_df
         )
         
-        # Limpiar mensaje de procesamiento
         status_placeholder.empty()
         
-        # Mostrar resultado
         if not unassigned:
             st.success("✅ Se pudieron asignar todos los pallets.")
         else:
             unassigned_uld = [uld for uld, _ in unassigned]
             st.warning(f"⚠️ Quedaron pallets por asignar: {', '.join(unassigned_uld)}")
+        
+        # Forzar actualización de la lista de pallets
+        st.session_state.calculation_state.df = df.copy()
+        st.session_state.calculation_state.posiciones_usadas = posiciones_usadas.copy()
+        st.session_state.calculation_state.rotaciones = rotaciones.copy()
+        st.rerun()

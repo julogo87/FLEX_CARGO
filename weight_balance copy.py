@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 from io import StringIO, BytesIO
 import copy
+import time
 import plotly.io as pio
 import matplotlib.pyplot as plt
 import matplotlib
@@ -17,6 +18,11 @@ from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.styles import getSampleStyleSheet
 from PIL import Image as PILImage
+
+# Usar caché para operaciones costosas
+@st.cache_data
+def load_aircraft_data(_aircraft_db_path):
+    return pd.read_csv(_aircraft_db_path, sep=";", decimal=",")
 
 def weight_balance_calculation():
     # Mover importaciones aquí para evitar circularidad
@@ -93,13 +99,12 @@ def weight_balance_calculation():
     base_dir = script_dir
     aircraft_db_path = os.path.join(base_dir, "General_aircraft_database.csv")
 
-    # Inicializar aircraft_db al inicio para que esté disponible en todo el ámbito
-    if not os.path.exists(aircraft_db_path):
-        st.error(f"No se encontró el archivo en: {aircraft_db_path}. Asegúrate de que el archivo exista en la ruta especificada.")
-        st.stop()
-    aircraft_db = pd.read_csv(aircraft_db_path, sep=";", decimal=",")
-
+    # Inicializar aircraft_db al inicio con caché
+    start_time = time.time()
+    aircraft_db = load_aircraft_data(aircraft_db_path)
+    st.write(f"Tiempo de carga de aircraft_db: {time.time() - start_time:.2f} segundos")
     if "json_imported" in st.session_state and st.session_state.json_imported:
+        start_time = time.time()
         try:
             # Verificar que sea un objeto de archivo válido
             if not hasattr(st.session_state.json_imported, 'read'):
@@ -210,6 +215,11 @@ def weight_balance_calculation():
             st.session_state.passengers_cockpit = default_flight_data["passengers_cockpit"]
             st.session_state.passengers_supernumerary = default_flight_data["passengers_supernumerary"]
             
+            # Actualizar valores de tanques si están en el JSON
+            if "fuel_distribution" in calculated_values:
+                for tank in default_calc_state["fuel_distribution"]:
+                    st.session_state[f"tank_{tank}"] = calculated_values["fuel_distribution"].get(tank, 0.0)
+            
             # Mostrar el manifiesto importado para depuración
             if default_calc_state["df"] is not None:
                 st.write("Manifiesto importado desde JSON:", default_calc_state["df"])
@@ -222,21 +232,14 @@ def weight_balance_calculation():
                     st.session_state.calculation_state.posiciones_usadas = default_calc_state["posiciones_usadas"].copy()
                     st.session_state.calculation_state.rotaciones = default_calc_state["rotaciones"].copy()
             
-            st.success("JSON cargado correctamente. Los campos han sido prellenados con los datos del archivo.")
+            st.success(f"JSON cargado correctamente en {time.time() - start_time:.2f} segundos. Los campos han sido prellenados con los datos del archivo.")
         except json.JSONDecodeError as e:
             st.error(f"Error al decodificar el JSON: {str(e)}. Verifique que el archivo sea un JSON válido.")
             return
         except Exception as e:
             st.error(f"Error al cargar el JSON: {str(e)}")
             return
-
-    if not os.path.exists(aircraft_db_path):
-        st.error(f"No se encontró el archivo en: {aircraft_db_path}. Asegúrate de que el archivo exista en la ruta especificada.")
-        return
-    aircraft_db = pd.read_csv(aircraft_db_path, sep=";", decimal=",")
-    
     # En la sección "Carga de Datos Iniciales", reemplaza la línea del st.selectbox con lo siguiente
-
     # Preservar la selección de la matrícula en st.session_state
     if "selected_tail" not in st.session_state:
         # Si no hay una matrícula seleccionada, usa el valor predeterminado de default_flight_data
@@ -249,7 +252,7 @@ def weight_balance_calculation():
 
     # Definir el selectbox y actualizar st.session_state.selected_tail cuando cambie
     tail = st.selectbox(
-        "Seleccione la matícula de la aeronave",
+        "Seleccione la matrícula de la aeronave",
         tail_options,
         index=tail_index,
         key="tail_selectbox"
@@ -258,33 +261,42 @@ def weight_balance_calculation():
     # Actualizar st.session_state.selected_tail cuando el usuario seleccione una nueva matrícula
     if tail != st.session_state.selected_tail:
         st.session_state.selected_tail = tail
-    
+
     aircraft_folder = os.path.normpath(os.path.join(base_dir, tail))
     if not os.path.exists(aircraft_folder):
         st.error(f"La carpeta {aircraft_folder} no existe.")
         return
 
+    # Caché para archivos de la aeronave
+    @st.cache_data
+    def load_aircraft_file(_path):
+        return pd.read_csv(_path, sep=";", decimal=",")
+
+    start_time = time.time()
     basic_data_path = os.path.join(aircraft_folder, "basic_data.csv")
     if not os.path.exists(basic_data_path):
-        st.error(f"No se encontró el archivo en: {basic_data_path}. Asegúrate de que el archivo exista en la ruta especificada.")
+        st.error(f"No se encontró el archivo en: {basic_data_path}. Asegúrese de que el archivo exista en la ruta especificada.")
         return
-    basic_data = pd.read_csv(basic_data_path, sep=";", decimal=",")
+    basic_data = load_aircraft_file(basic_data_path)
+    st.write(f"Tiempo de carga de basic_data: {time.time() - start_time:.2f} segundos")
 
     st.markdown('<div id="restrictions_section"></div>', unsafe_allow_html=True)
     st.subheader("Restricciones Temporales Activas")
+    start_time = time.time()
     restrictions_path = os.path.join(aircraft_folder, "MD_LD_BULK_restrictions.csv")
     if not os.path.exists(restrictions_path):
-        st.error(f"No se encontró el archivo en: {restrictions_path}. Asegúrate de que el archivo exista en la ruta especificada.")
+        st.error(f"No se encontró el archivo en: {restrictions_path}. Asegúrese de que el archivo exista en la ruta especificada.")
         return
-    restricciones_df = pd.read_csv(restrictions_path, sep=";", decimal=",")
+    restricciones_df = load_aircraft_file(restrictions_path)
     restricciones_df.columns = [col.strip().replace(" ", "_") for col in restricciones_df.columns]
     restricciones_df["Temp_Restriction_Symmetric"] = pd.to_numeric(restricciones_df["Temp_Restriction_Symmetric"], errors="coerce").fillna(0)
     restricciones_df["Temp_Restriction_Asymmetric"] = pd.to_numeric(restricciones_df["Temp_Restriction_Asymmetric"], errors="coerce").fillna(0)
+    st.write(f"Tiempo de carga de restricciones_df: {time.time() - start_time:.2f} segundos")
 
     active_restrictions = restricciones_df[
         (restricciones_df["Temp_Restriction_Symmetric"] != 0) | (restricciones_df["Temp_Restriction_Asymmetric"] != 0)
     ][["Position", "Bodega", "Temp_Restriction_Symmetric", "Temp_Restriction_Asymmetric"]]
-    
+
     if active_restrictions.empty:
         st.info(f"No hay restricciones temporales activas para la aeronave {tail}.")
     else:
@@ -300,35 +312,43 @@ def weight_balance_calculation():
             use_container_width=True
         )
 
+    start_time = time.time()
     exclusions_path = os.path.join(aircraft_folder, "exclusiones.csv")
     if not os.path.exists(exclusions_path):
-        st.error(f"No se encontró el archivo en: {exclusions_path}. Asegúrate de que el archivo exista en la ruta especificada.")
+        st.error(f"No se encontró el archivo en: {exclusions_path}. Asegúrese de que el archivo exista en la ruta especificada.")
         return
-    exclusiones_df = pd.read_csv(exclusions_path, sep=";", decimal=",")
+    exclusiones_df = load_aircraft_file(exclusions_path)
     exclusiones_df.set_index(exclusiones_df.columns[0], inplace=True)
-
+    st.write(f"Tiempo de carga de exclusiones_df: {time.time() - start_time:.2f} segundos")        
+    start_time = time.time()
     cumulative_restrictions_aft_path = os.path.join(aircraft_folder, "cummulative_restrictions_AFT.csv")
     if not os.path.exists(cumulative_restrictions_aft_path):
-        st.error(f"No se encontró el archivo en: {cumulative_restrictions_aft_path}. Asegúrate de que el archivo exista en la ruta especificada.")
+        st.error(f"No se encontró el archivo en: {cumulative_restrictions_aft_path}. Asegúrese de que el archivo exista en la ruta especificada.")
         return
-    cumulative_restrictions_aft_df = pd.read_csv(cumulative_restrictions_aft_path, sep=";", decimal=",")
+    cumulative_restrictions_aft_df = load_aircraft_file(cumulative_restrictions_aft_path)
+    st.write(f"Tiempo de carga de cumulative_restrictions_aft_df: {time.time() - start_time:.2f} segundos")
 
+    start_time = time.time()
     cumulative_restrictions_fwd_path = os.path.join(aircraft_folder, "cummulative_restrictions_FWD.csv")
     if not os.path.exists(cumulative_restrictions_fwd_path):
-        st.error(f"No se encontró el archivo en: {cumulative_restrictions_fwd_path}. Asegúrate de que el archivo exista en la ruta especificada.")
+        st.error(f"No se encontró el archivo en: {cumulative_restrictions_fwd_path}. Asegúrese de que el archivo exista en la ruta especificada.")
         return
-    cumulative_restrictions_fwd_df = pd.read_csv(cumulative_restrictions_fwd_path, sep=";", decimal=",")
+    cumulative_restrictions_fwd_df = load_aircraft_file(cumulative_restrictions_fwd_path)
+    st.write(f"Tiempo de carga de cumulative_restrictions_fwd_df: {time.time() - start_time:.2f} segundos")
 
+    start_time = time.time()
     fuel_table_path = os.path.join(aircraft_folder, "Usable_fuel_table.csv")
     if not os.path.exists(fuel_table_path):
-        st.error(f"No se encontró el archivo en: {fuel_table_path}. Asegúrate de que el archivo exista en la ruta especificada.")
+        st.error(f"No se encontró el archivo en: {fuel_table_path}. Asegúrese de que el archivo exista en la ruta especificada.")
         return
-    fuel_table = pd.read_csv(fuel_table_path, sep=";", decimal=",")
+    fuel_table = load_aircraft_file(fuel_table_path)
     required_fuel_columns = ["Fuel_kg", "MOMENT-X", "MOMENT-Y"]
     if not all(col in fuel_table.columns for col in required_fuel_columns):
         st.error(f"El archivo Usable_fuel_table.csv no contiene las columnas esperadas: {required_fuel_columns}.")
         return
+    st.write(f"Tiempo de carga de fuel_table: {time.time() - start_time:.2f} segundos")
 
+    start_time = time.time()
     outer_tanks_path = os.path.normpath(os.path.join(aircraft_folder, "outer_tanks.csv"))
     inner_tanks_path = os.path.normpath(os.path.join(aircraft_folder, "inner_tanks.csv"))
     center_tank_path = os.path.normpath(os.path.join(aircraft_folder, "center_tank.csv"))
@@ -348,55 +368,62 @@ def weight_balance_calculation():
         st.error(f"Faltan los siguientes archivos en la carpeta de la aeronave: {', '.join(missing_files)}")
         return
 
-    outer_tanks_df = pd.read_csv(outer_tanks_path, sep=";", decimal=",")
-    inner_tanks_df = pd.read_csv(inner_tanks_path, sep=";", decimal=",")
-    center_tank_df = pd.read_csv(center_tank_path, sep=";", decimal=",")
-    trim_tank_df = pd.read_csv(trim_tank_path, sep=";", decimal=",")
+    outer_tanks_df = load_aircraft_file(outer_tanks_path)
+    inner_tanks_df = load_aircraft_file(inner_tanks_path)
+    center_tank_df = load_aircraft_file(center_tank_path)
+    trim_tank_df = load_aircraft_file(trim_tank_path)
+    st.write(f"Tiempo de carga de tanques: {time.time() - start_time:.2f} segundos")
 
+    start_time = time.time()
     passengers_path = os.path.join(aircraft_folder, "Passengers.csv")
     if not os.path.exists(passengers_path):
-        st.error(f"No se encontró el archivo en: {passengers_path}. Asegúrate de que el archivo exista en la ruta especificada.")
+        st.error(f"No se encontró el archivo en: {passengers_path}. Asegúrese de que el archivo exista en la ruta especificada.")
         return
-    passengers_df = pd.read_csv(passengers_path, sep=";", decimal=",")
+    passengers_df = load_aircraft_file(passengers_path)
     max_passengers_supernumerary = int(passengers_df["Quantity-Passenger"].max())
     if 0 not in passengers_df["Quantity-Passenger"].values:
         passengers_df = pd.concat([pd.DataFrame({"Quantity-Passenger": [0], "Weight": [0], "Moment": [0]}), passengers_df], ignore_index=True)
+    st.write(f"Tiempo de carga de passengers_df: {time.time() - start_time:.2f} segundos")
 
+    start_time = time.time()
     flite_deck_path = os.path.join(aircraft_folder, "Flite_deck_passengers.csv")
     if not os.path.exists(flite_deck_path):
-        st.error(f"No se encontró el archivo en: {flite_deck_path}. Asegúrate de que el archivo exista en la ruta especificada.")
+        st.error(f"No se encontró el archivo en: {flite_deck_path}. Asegúrese de que el archivo exista en la ruta especificada.")
         return
-    flite_deck_df = pd.read_csv(flite_deck_path, sep=";", decimal=",")
+    flite_deck_df = load_aircraft_file(flite_deck_path)
     max_passengers_cockpit = int(flite_deck_df["Quantity-Passenger Flite-Deck"].max())
     if 0 not in flite_deck_df["Quantity-Passenger Flite-Deck"].values:
         flite_deck_df = pd.concat([pd.DataFrame({"Quantity-Passenger Flite-Deck": [0], "Weight": [0], "Moment": [0]}), flite_deck_df], ignore_index=True)
+    st.write(f"Tiempo de carga de flite_deck_df: {time.time() - start_time:.2f} segundos")
 
+    start_time = time.time()
     trimset_path = os.path.join(aircraft_folder, "trimset.csv")
     if not os.path.exists(trimset_path):
-        st.error(f"No se encontró el archivo en: {trimset_path}. Asegúrate de que el archivo exista en la ruta especificada.")
+        st.error(f"No se encontró el archivo en: {trimset_path}. Asegúrese de que el archivo exista en la ruta especificada.")
         return
-    trimset_df = pd.read_csv(trimset_path, sep=";", decimal=",")
+    trimset_df = load_aircraft_file(trimset_path)
+    st.write(f"Tiempo de carga de trimset_df: {time.time() - start_time:.2f} segundos")
 
     st.markdown('<div id="flight_info_section"></div>', unsafe_allow_html=True)
     st.subheader("Información del Vuelo")
-    
+        
     col_fuel1, col_fuel2 = st.columns(2)
     with col_fuel1:
-        normal_fuel = st.number_input("Combustible Total (kg)", min_value=0.0, value=float(default_flight_data["fuel_kg"]), key="normal_fuel")
+        normal_fuel = st.number_input("Combustible Total (kg)", min_value=0.0, value=float(st.session_state.get("normal_fuel", default_flight_data["fuel_kg"])), key="normal_fuel")
     with col_fuel2:
-        ballast_fuel = st.number_input("Combustible Ballast y/o Atrapado (kg)", min_value=0.0, value=float(default_flight_data["ballast_fuel"]), key="ballast_fuel")
+        ballast_fuel = st.number_input("Combustible Ballast y/o Atrapado (kg)", min_value=0.0, value=float(st.session_state.get("ballast_fuel", default_flight_data["ballast_fuel"])), key="ballast_fuel")
 
     fuel_kg = normal_fuel + ballast_fuel
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        fuel_mode = st.selectbox("Método de Cargue de Combustible", ["Automático", "Manual"], index=["Automático", "Manual"].index(default_calc_state["fuel_mode"]))
+        fuel_mode = st.selectbox("Método de Cargue de Combustible", ["Automático", "Manual"], index=["Automático", "Manual"].index(st.session_state.get("fuel_mode", default_calc_state["fuel_mode"])))
     with col2:
-        trip_fuel = st.number_input("Trip Fuel (kg)", min_value=0.0, max_value=fuel_kg, value=float(default_flight_data["trip_fuel"]), key="trip_fuel")
+        trip_fuel = st.number_input("Trip Fuel (kg)", min_value=0.0, max_value=fuel_kg, value=float(st.session_state.get("trip_fuel", default_flight_data["trip_fuel"])), key="trip_fuel")
     with col3:
-        taxi_fuel = st.number_input("Taxi Fuel (kg)", min_value=0.0, max_value=fuel_kg - trip_fuel, value=float(default_flight_data["taxi_fuel"]), key="taxi_fuel")
+        taxi_fuel = st.number_input("Taxi Fuel (kg)", min_value=0.0, max_value=fuel_kg - trip_fuel, value=float(st.session_state.get("taxi_fuel", default_flight_data["taxi_fuel"])), key="taxi_fuel")
 
-    tank_fuel = default_calc_state["fuel_distribution"]
+    tank_fuel = st.session_state.calculation_state.fuel_distribution if "calculation_state" in st.session_state and st.session_state.calculation_state.fuel_distribution else default_calc_state["fuel_distribution"]
     if fuel_mode == "Manual":
         st.write("### Cargue Manual de Combustible")
         st.write("Ingrese la cantidad de combustible (kg) en cada tanque.")
@@ -417,7 +444,7 @@ def weight_balance_calculation():
                     f"{tank} (kg, máx {tanks[tank]['max_kg']})",
                     min_value=0.0,
                     max_value=float(tanks[tank]['max_kg']),
-                    value=float(tank_fuel[tank]),
+                    value=float(st.session_state.get(f"tank_{tank}", tank_fuel[tank])),
                     key=f"tank_{tank}"
                 )
         
@@ -427,39 +454,39 @@ def weight_balance_calculation():
 
     col4, col5, col6 = st.columns(3)
     with col4:
-        tipo_carga = st.selectbox("Tipo de cargue", ["Simétrico", "Asimétrico"], index=["Simétrico", "Asimétrico"].index(default_flight_data["tipo_carga"]))
+        tipo_carga = st.selectbox("Tipo de cargue", ["Simétrico", "Asimétrico"], index=["Simétrico", "Asimétrico"].index(st.session_state.get("tipo_carga", default_flight_data["tipo_carga"])))
     with col5:
-        destino_inicial = st.text_input("Destino inicial (ej. MIA)", value=default_flight_data["destino_inicial"]).upper()
+        destino_inicial = st.text_input("Destino inicial (ej. MIA)", value=st.session_state.get("destino_inicial", default_flight_data["destino_inicial"]).upper())
     with col6:
-        takeoff_runway = st.text_input("Pista de despegue (ej. RWY 13)", value=default_flight_data["takeoff_runway"])
+        takeoff_runway = st.text_input("Pista de despegue (ej. RWY 13)", value=st.session_state.get("takeoff_runway", default_flight_data["takeoff_runway"]))
 
     col7, col8, col9 = st.columns(3)
     with col7:
-        rwy_condition = st.selectbox("Condición de la pista", ["Dry", "Wet", "Contaminated"], index=0 if not default_flight_data.get("rwy_condition") else ["Dry", "Wet", "Contaminated"].index(default_flight_data["rwy_condition"]))
+        rwy_condition = st.selectbox("Condición de la pista", ["Dry", "Wet", "Contaminated"], index=0 if not st.session_state.get("rwy_condition") else ["Dry", "Wet", "Contaminated"].index(st.session_state.get("rwy_condition", default_flight_data["rwy_condition"])))
     with col8:
-        flaps_conf = st.selectbox("Configuración de flaps", ["1+F", "2", "3"], index=["1+F", "2", "3"].index(default_flight_data["flaps_conf"]))
+        flaps_conf = st.selectbox("Configuración de flaps", ["1+F", "2", "3"], index=["1+F", "2", "3"].index(st.session_state.get("flaps_conf", default_flight_data["flaps_conf"])))
     with col9:
-        temperature = st.number_input("Temperatura (°C)", value=float(default_flight_data["temperature"]))
+        temperature = st.number_input("Temperatura (°C)", value=float(st.session_state.get("temperature", default_flight_data["temperature"])))
 
     col10, col11, col12 = st.columns(3)
     with col10:
-        air_condition = st.selectbox("Packs", ["On", "Off"], index=["On", "Off"].index(default_flight_data["air_condition"]))
+        air_condition = st.selectbox("Packs", ["On", "Off"], index=["On", "Off"].index(st.session_state.get("air_condition", default_flight_data["air_condition"])))
     with col11:
-        anti_ice = st.selectbox("Anti ice", ["On", "Off"], index=["On", "Off"].index(default_flight_data["anti_ice"]))
+        anti_ice = st.selectbox("Anti ice", ["On", "Off"], index=["On", "Off"].index(st.session_state.get("anti_ice", default_flight_data["anti_ice"])))
     with col12:
-        qnh = st.number_input("QNH (hPa)", min_value=900.0, max_value=1100.0, value=float(default_flight_data["qnh"]))
+        qnh = st.number_input("QNH (hPa)", min_value=900.0, max_value=1100.0, value=float(st.session_state.get("qnh", default_flight_data["qnh"])))
 
     col13, col14, col15 = st.columns(3)
     with col13:
-        performance_tow = st.number_input("Performance TOW (kg)", min_value=0.0, value=float(default_flight_data["performance_tow"]))
+        performance_tow = st.number_input("Performance TOW (kg)", min_value=0.0, value=float(st.session_state.get("performance_tow", default_flight_data["performance_tow"])))
     with col14:
-        performance_lw = st.number_input("Performance LW (kg)", min_value=0.0, value=float(default_flight_data["performance_lw"]))
+        performance_lw = st.number_input("Performance LW (kg)", min_value=0.0, value=float(st.session_state.get("performance_lw", default_flight_data["performance_lw"])))
     with col15:
-        passengers_cockpit = st.number_input(f"Pasajeros en cabina de mando (máx {max_passengers_cockpit})", min_value=0, max_value=max_passengers_cockpit, step=1, value=int(default_flight_data["passengers_cockpit"]), key="passengers_cockpit")
+        passengers_cockpit = st.number_input(f"Pasajeros en cabina de mando (máx {max_passengers_cockpit})", min_value=0, max_value=max_passengers_cockpit, step=1, value=int(st.session_state.get("passengers_cockpit", default_flight_data["passengers_cockpit"])), key="passengers_cockpit")
 
     col16, col17, _ = st.columns(3)
     with col16:
-        passengers_supernumerary = st.number_input(f"Pasajeros supernumerarios (máx {max_passengers_supernumerary})", min_value=0, max_value=max_passengers_supernumerary, step=1, value=int(default_flight_data["passengers_supernumerary"]), key="passengers_supernumerary")
+        passengers_supernumerary = st.number_input(f"Pasajeros supernumerarios (máx {max_passengers_supernumerary})", min_value=0, max_value=max_passengers_supernumerary, step=1, value=int(st.session_state.get("passengers_supernumerary", default_flight_data["passengers_supernumerary"])), key="passengers_supernumerary")
 
     if fuel_kg < 0 or taxi_fuel < 0 or trip_fuel < 0:
         st.error("Los valores de combustible no pueden ser negativos.")
@@ -570,6 +597,7 @@ def weight_balance_calculation():
         st.markdown('<div id="manifest_data_section"></div>', unsafe_allow_html=True)
         manifiesto_file = st.file_uploader("Sube el manifiesto CSV", type="csv", key="manifiesto")
         if manifiesto_file:
+            start_time = time.time()
             df = pd.read_csv(manifiesto_file, skiprows=8, sep=";", encoding="latin-1", header=None, decimal=",")
             df.columns = ["Contour", "Number ULD", "ULD Final Destination", "Weight (KGS)", "Pieces", "Notes", "Extra1", "Extra2", "Extra3", "Extra4"]
             df = df[["Contour", "Number ULD", "ULD Final Destination", "Weight (KGS)", "Pieces", "Notes"]]
@@ -599,7 +627,8 @@ def weight_balance_calculation():
                     st.session_state.calculation_state.rotaciones = {}
             
             st.session_state.calculation_state.df = df.copy()
-            st.write("Manifiesto Inicial:", df)
+            st.session_state.manifiesto_manual = df.copy()
+            st.write(f"Manifiesto cargado en {time.time() - start_time:.2f} segundos:", df)
 
             manifiesto_file.seek(0)
             content = manifiesto_file.read().decode("latin-1")
@@ -674,6 +703,7 @@ def weight_balance_calculation():
             if edited_df.empty or edited_df[["Number ULD", "Weight (KGS)"]].isna().any().any():
                 st.error("El manifiesto no puede estar vacío y debe incluir 'Number ULD' y 'Weight (KGS)' para cada fila.")
             else:
+                start_time = time.time()
                 df = edited_df.copy()
                 df = df.dropna(subset=["Number ULD", "Weight (KGS)"], how="any")
                 df = df[~df["Number ULD"].astype(str).str.upper().str.contains("TOTAL")]
@@ -708,7 +738,7 @@ def weight_balance_calculation():
                 
                 st.session_state.calculation_state.df = df.copy()
                 st.session_state.manifiesto_manual = df.copy()
-                st.write("Manifiesto Ingresado:", df)
+                st.write(f"Manifiesto confirmado en {time.time() - start_time:.2f} segundos:", df)
                 
                 operador = operador_manual
                 numero_vuelo = numero_vuelo_manual
@@ -724,7 +754,6 @@ def weight_balance_calculation():
     if df is None:
         st.warning("Por favor, suba un manifiesto CSV o confirme un manifiesto manual para continuar.")
         return
-
     flight_data = FlightData(
         operador=operador,
         numero_vuelo=numero_vuelo,
@@ -812,9 +841,10 @@ def weight_balance_calculation():
     data_to_save = None
     output_json = None
 
-    if st.session_state.calculation_state.df is not None and st.session_state.calculation_state.df["Posición Asignada"].ne("").any():
-        df_asignados = st.session_state.calculation_state.df[st.session_state.calculation_state.df["Posición Asignada"] != ""]
+    if st.session_state.calculation_state.df is not None:
+        df_asignados = st.session_state.calculation_state.df.copy()  # Usar el DataFrame completo para preservar todos los datos
         
+        start_time = time.time()
         final_results = calculate_final_values(
             df_asignados,
             st.session_state.calculation_state.bow,
@@ -837,6 +867,7 @@ def weight_balance_calculation():
             fuel_distribution=st.session_state.calculation_state.fuel_distribution,
             fuel_mode=st.session_state.calculation_state.fuel_mode
         )
+        st.write(f"Tiempo de cálculo final: {time.time() - start_time:.2f} segundos")
 
         alerts = []
         if final_results["tow"] > aircraft_data.mtoc:
@@ -848,7 +879,9 @@ def weight_balance_calculation():
         if performance_lw > 0 and final_results["lw"] > performance_lw:
             alerts.append(f"LW ({final_results['lw']:.1f} kg) excede el Performance LW ({performance_lw:.1f} kg).")
 
+        start_time = time.time()
         complies, validation_df = check_cumulative_weights(df_asignados, cumulative_restrictions_fwd_df, cumulative_restrictions_aft_df)
+        st.write(f"Tiempo de validación: {time.time() - start_time:.2f} segundos")
 
         st.markdown('<div id="validation_section"></div>', unsafe_allow_html=True)
         st.subheader("Validación de Pesos Acumulativos")
@@ -869,6 +902,7 @@ def weight_balance_calculation():
         else:
             st.success("Todas las posiciones cumplen los pesos acumulativos.")
         
+        start_time = time.time()
         st.markdown('<div id="summary_section"></div>', unsafe_allow_html=True)
         st.subheader("Resumen Final de Peso y Balance")
         print_final_summary(
@@ -921,12 +955,16 @@ def weight_balance_calculation():
             active_restrictions,
             flight_data.performance_tow
         )
+        st.write(f"Tiempo de resumen: {time.time() - start_time:.2f} segundos")
 
+        start_time = time.time()
         st.markdown('<div id="results_section"></div>', unsafe_allow_html=True)
         st.subheader("Resultados del Cálculo")
         st.write("**Asignaciones Realizadas:**")
         st.dataframe(df_asignados, use_container_width=True)
+        st.write(f"Tiempo de resultados: {time.time() - start_time:.2f} segundos")
 
+        start_time = time.time()
         st.write("**Pallets por Destino:**")
         destino_summary = None
         if not df_asignados.empty:
@@ -946,7 +984,9 @@ def weight_balance_calculation():
             )
         else:
             st.write("- No hay pallets asignados.")
+        st.write(f"Tiempo de pallets por destino: {time.time() - start_time:.2f} segundos")
 
+        start_time = time.time()
         st.write("**Pallets por Bodega:**")
         bodega_summary = None
         if not df_asignados.empty:
@@ -966,7 +1006,9 @@ def weight_balance_calculation():
             )
         else:
             st.write("- No hay pallets asignados.")
+        st.write(f"Tiempo de pallets por bodega: {time.time() - start_time:.2f} segundos")
 
+        start_time = time.time()
         st.markdown('<div id="main_deck_section"></div>', unsafe_allow_html=True)
         st.write("**Distribución de Pallets en Main Deck:**")
         fig_main_deck = None
@@ -976,7 +1018,9 @@ def weight_balance_calculation():
                 st.pyplot(fig_main_deck)
         else:
             st.write("- No hay pallets asignados en Main Deck.")
+        st.write(f"Tiempo de main_deck: {time.time() - start_time:.2f} segundos")
 
+        start_time = time.time()
         st.markdown('<div id="lower_decks_section"></div>', unsafe_allow_html=True)
         st.write("**Distribución de Pallets en LDF, LDA y Bulk:**")
         fig_lower_decks = None
@@ -986,7 +1030,9 @@ def weight_balance_calculation():
                 st.pyplot(fig_lower_decks)
         else:
             st.write("- No hay pallets asignados en LDF, LDA o Bulk.")
+        st.write(f"Tiempo de lower_decks: {time.time() - start_time:.2f} segundos")
 
+        start_time = time.time()
         st.markdown('<div id="envelope_section"></div>', unsafe_allow_html=True)
         st.subheader("Envelope")
         plt_envelope = None
@@ -1057,9 +1103,7 @@ def weight_balance_calculation():
                 st.pyplot(plt_envelope)
         except Exception as e:
             st.error(f"Error al generar el envelope: {str(e)}")
-
-        # En weight_balance.py, dentro de la función weight_balance_calculation()
-# Busca la sección del envelope flotante y reemplázala con lo siguiente
+        st.write(f"Tiempo de envelope: {time.time() - start_time:.2f} segundos")
 
         # Mostrar el envelope flotante si show_envelope está activo
         if st.session_state.get("show_envelope", False):
@@ -1113,11 +1157,12 @@ def weight_balance_calculation():
                     st.session_state.close_envelope_trigger = True  # Usar bandera temporal
                 st.markdown("</div>", unsafe_allow_html=True)
 
-        # Después de la sección del envelope flotante, añade este código para manejar el cierre
+        # Manejar el cierre del envelope flotante
         if "close_envelope_trigger" in st.session_state and st.session_state.close_envelope_trigger:
             st.session_state.show_envelope = False
             del st.session_state.close_envelope_trigger
             st.rerun()
+
         st.markdown('<div id="export_section"></div>', unsafe_allow_html=True)
         st.subheader("Exportación")
 
@@ -1126,7 +1171,7 @@ def weight_balance_calculation():
             for alert in alerts:
                 st.write(f"- {alert}")
 
-        # Preparar datos para exportar
+        # Preparar datos para exportar usando el DataFrame completo
         if "calculation_state" in st.session_state and st.session_state.calculation_state.df is not None:
             data_to_save = {
                 "flight_info": {
@@ -1179,6 +1224,7 @@ def weight_balance_calculation():
                 "posiciones_usadas": list(st.session_state.calculation_state.posiciones_usadas),
                 "rotaciones": st.session_state.calculation_state.rotaciones,
                 "tipo_carga": flight_data.tipo_carga,
+                "fuel_distribution": st.session_state.calculation_state.fuel_distribution,
             }
         else:
             st.error("No hay datos de cálculo para exportar. Por favor, complete un cálculo primero.")

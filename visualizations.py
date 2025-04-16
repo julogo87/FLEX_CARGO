@@ -1,8 +1,10 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
-import plotly.express as px
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.colors import to_rgba
+import textwrap
 
 def print_final_summary(
     df_asignados, operador, numero_vuelo, matricula, fecha_vuelo, hora_vuelo, ruta_vuelo, revision,
@@ -66,13 +68,15 @@ def print_final_summary(
         st.markdown(f'<div class="summary-item"><b>Peso Total Carga:</b> {peso_total:,.1f} kg</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>ZFW:</b> {zfw_peso:,.1f} kg (MAC: {zfw_mac:,.1f}%)</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>MZFW:</b> {mzfw:,.1f} kg</div>', unsafe_allow_html=True)
-    with col4:
         st.markdown(f'<div class="summary-item"><b>TOW:</b> {tow:,.1f} kg (MAC: {tow_mac:,.1f}%)</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>MTOW:</b> {mtow:,.1f} kg</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>Trip Fuel:</b> {trip_fuel:,.1f} kg</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>LW:</b> {lw:,.1f} kg (MAC: {lw_mac:,.1f}%)</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>MLW:</b> {mlw:,.1f} kg</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>Performance LW:</b> {performance_lw:,.1f} kg</div>' if performance_lw > 0 else '<div class="summary-item"><b>Performance LW:</b> No especificado</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-item"><b>Pitch Trim:</b> {pitch_trim:,.1f}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-item"><b>Desbalance Lateral:</b> {lateral_imbalance:,.1f} kg (Límite: {lateral_imbalance_limit:,.1f} kg)</div>', unsafe_allow_html=True)
+    with col4:
         # Pallets por Destino
         st.markdown('<div class="summary-item"><b>Pallets por Destino:</b></div>', unsafe_allow_html=True)
         if not df_asignados.empty:
@@ -85,8 +89,10 @@ def print_final_summary(
         st.markdown('<div class="summary-item"><b>Pallets por Bodega:</b></div>', unsafe_allow_html=True)
         if not df_asignados.empty:
             bodega_summary = df_asignados.groupby("Bodega")["Weight (KGS)"].sum().reset_index()
+            total_bodega_weight = bodega_summary["Weight (KGS)"].sum()
             for _, row in bodega_summary.iterrows():
                 st.markdown(f'<div class="summary-item"> - {row["Bodega"]}: {row["Weight (KGS)"]:,.1f} kg</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="summary-item"><b>Total:</b> {total_bodega_weight:,.1f} kg</div>', unsafe_allow_html=True)
         else:
             st.markdown('<div class="summary-item"> - No hay pallets asignados.</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -114,12 +120,12 @@ def print_final_summary(
     with col7:
         st.markdown(f'<div class="summary-item"><b>Underload:</b> {underload:,.1f} kg</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>MROW:</b> {mrow:,.1f} kg (Límite: {mrw_limit:,.1f} kg)</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="summary-item"><b>Desbalance Lateral:</b> {lateral_imbalance:,.1f} kg (Límite: {lateral_imbalance_limit:,.1f} kg)</div>', unsafe_allow_html=True)
+        
     with col8:
         st.markdown(f'<div class="summary-item"><b>Carga Máx. LW:</b> {max_payload_lw:,.1f} kg</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>Carga Máx. TOW:</b> {max_payload_tow:,.1f} kg</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>Carga Máx. ZFW:</b> {max_payload_zfw:,.1f} kg</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="summary-item"><b>Pitch Trim:</b> {pitch_trim:,.1f}</div>', unsafe_allow_html=True)
+        
     st.markdown('</div>', unsafe_allow_html=True)
 
     # Combustible
@@ -165,34 +171,17 @@ def print_final_summary(
     st.markdown('</div>', unsafe_allow_html=True)
 
 def plot_main_deck(df):
-    """
-    Genera una gráfica Plotly para los pallets en el Main Deck con tamaños específicos por posición.
-    - CFR, FJR, JLR, LPR: 2x4 metros.
-    - CFG, FJG, JLG: 2x6 metros.
-    - Otros: 2x2 metros.
-    - Eje X: siempre de 14 a 80.
-    - Eje Y: de -2.5 a 2.5 con paso de 0.5.
-
-    Args:
-        df (pd.DataFrame): DataFrame con los datos de los pallets asignados.
-
-    Returns:
-        plotly.graph_objects.Figure: Gráfica interactiva del Main Deck.
-    """
-    # Filtrar pallets en Main Deck (MD)
     df_md = df[df["Bodega"] == "MD"].copy()
     if df_md.empty:
         st.warning("No hay pallets asignados en Main Deck.")
         return None
 
-    # Validar columnas necesarias
-    required_columns = ["X-arm", "Y-arm", "Number ULD", "Posición Asignada", "Weight (KGS)", "ULD Final Destination", "Contour"]
+    required_columns = ["X-arm", "Y-arm", "Number ULD", "Posición Asignada", "Weight (KGS)", "ULD Final Destination", "Contour", "Notes"]
     missing_columns = [col for col in required_columns if col not in df_md.columns]
     if missing_columns:
         st.error(f"Faltan columnas en el DataFrame: {', '.join(missing_columns)}")
         return None
 
-    # Eliminar filas con valores nulos o no numéricos en X-arm, Y-arm
     df_md = df_md.dropna(subset=["X-arm", "Y-arm", "Posición Asignada", "Weight (KGS)"])
     df_md = df_md[pd.to_numeric(df_md["X-arm"], errors='coerce').notnull()]
     df_md = df_md[pd.to_numeric(df_md["Y-arm"], errors='coerce').notnull()]
@@ -202,17 +191,12 @@ def plot_main_deck(df):
         st.warning("No hay datos válidos para graficar en Main Deck.")
         return None
 
-    # Crear una paleta de colores para destinos
     destinos = df_md["ULD Final Destination"].astype(str).unique()
-    colors = px.colors.qualitative.Plotly
-    color_map = {dest: colors[i % len(colors)] for i, dest in enumerate(destinos)}
+    colors = plt.cm.tab10(np.linspace(0, 1, len(destinos)))
+    color_map = {dest: to_rgba(colors[i], alpha=0.6) for i, dest in enumerate(destinos)}
 
-    # Inicializar la figura
-    fig = go.Figure()
+    fig, ax = plt.subplots(figsize=(22, 6))
 
-    # Añadir pallets como rectángulos con tamaños según posición
-    shapes = []
-    annotations = []
     for _, row in df_md.iterrows():
         try:
             x = float(row["X-arm"])
@@ -224,7 +208,6 @@ def plot_main_deck(df):
             contorno = str(row["Contour"])
             notas = str(row["Notes"]) if pd.notna(row["Notes"]) else "Sin notas"
 
-            # Definir tamaño según posición
             if pos in ["CFR", "FJR", "JLR", "LPR"]:
                 width = 2
                 height = 4
@@ -235,105 +218,62 @@ def plot_main_deck(df):
                 width = 2
                 height = 2
 
-            # Añadir rectángulo como forma
-            shapes.append(
-                dict(
-                    type="rect",
-                    x0=x - width / 2,
-                    y0=y - height / 2,
-                    x1=x + width / 2,
-                    y1=y + height / 2,
-                    fillcolor=color_map[destino],
-                    opacity=0.6,
-                    line=dict(color="black", width=1)
-                )
+            rect = patches.Rectangle(
+                (x - width / 2, y - height / 2),
+                width,
+                height,
+                linewidth=1,
+                edgecolor='gray',
+                facecolor=color_map[destino],
+                label=destino
             )
+            ax.add_patch(rect)
 
-            # Añadir anotación con la información
-            text = f"ULD: {uld}<br>Pos: {pos}<br>Peso: {peso:,.1f} kg<br>Dest: {destino}<br>Cont: {contorno}"
-            annotations.append(
-                dict(
-                    x=x,
-                    y=y,
-                    text=text,
-                    showarrow=False,
-                    font=dict(size=7, color="black"),
-                    align="center",
-                    xanchor="center",
-                    yanchor="middle"
-                )
-            )
+            max_text_width = int(width * 8)
+            wrapped_notas = textwrap.wrap(notas, width=max_text_width, break_long_words=True)[:3]
+            wrapped_notas = '\n'.join(wrapped_notas)
 
-            # Añadir punto para tooltip
-            fig.add_trace(
-                go.Scatter(
-                    x=[x],
-                    y=[y],
-                    mode="markers",
-                    marker=dict(size=1, opacity=0),
-                    hovertext=notas,
-                    hoverinfo="text",
-                    showlegend=False
-                )
-            )
+            line_height = height / 12
+            fontsize = 9
+            notes_fontsize = 8
+
+            ax.text(x, y + 3 * line_height, pos, ha='center', va='center', fontsize=fontsize, color='red', fontweight='bold', wrap=True, clip_on=True)
+            ax.text(x, y + 2 * line_height, uld, ha='center', va='center', fontsize=fontsize, color='black', fontweight='bold', wrap=True, clip_on=True)
+            ax.text(x, y + line_height, f"{peso:,.1f} kg", ha='center', va='center', fontsize=fontsize, color='black', fontweight='bold', wrap=True, clip_on=True)
+            ax.text(x, y, destino, ha='center', va='center', fontsize=fontsize, color='black', wrap=True, clip_on=True)
+            ax.text(x, y - line_height, contorno, ha='center', va='center', fontsize=fontsize, color='black', wrap=True, clip_on=True)
+            ax.text(x, y - height / 2 + line_height / 2, f"Notas: {wrapped_notas}", ha='center', va='bottom', fontsize=notes_fontsize, color='black', wrap=True, bbox=dict(facecolor='white', alpha=0.8, edgecolor='none', boxstyle='round,pad=0.3'), clip_on=True)
         except (ValueError, TypeError) as e:
             st.warning(f"Error al procesar pallet {uld}: {str(e)}")
             continue
 
-    # Configurar el layout
-    fig.update_layout(
-        title="Distribución de Pallets en Main Deck",
-        xaxis=dict(title="X-arm (metros)", showgrid=True, range=[14, 55]),
-        yaxis=dict(title="Y-arm (metros)", showgrid=True, range=[-2.5, 2.5], dtick=0.5),
-        shapes=shapes,
-        annotations=annotations,
-        showlegend=False,
-        plot_bgcolor="white",
-        width=1000,
-        height=300
-    )
+    ax.set_xlim(14, 55)
+    ax.set_ylim(-2.5, 2.5)
+    ax.set_yticks(np.arange(-2.5, 3.0, 0.5))
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    ax.set_title("Distribución de Pallets en Main Deck")
+    ax.grid(True)
 
-    # Añadir leyenda de colores
-    for destino, color in color_map.items():
-        fig.add_trace(
-            go.Scatter(
-                x=[None],
-                y=[None],
-                mode="markers",
-                marker=dict(size=10, color=color),
-                name=destino,
-                showlegend=True
-            )
-        )
+    handles = [patches.Patch(color=color, label=destino, alpha=0.6) for destino, color in color_map.items()]
+    ax.legend(handles=handles, loc='upper right', fontsize=8)
 
-    return fig
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close()
 
 def plot_lower_decks(df):
-    """
-    Genera una gráfica Plotly para los pallets en LDF, LDA y Bulk con tamaño de 1.5x1.5 metros.
-    - Eje X: siempre de 14 a 80.
-    - Eje Y: de -2.5 a 2.5 con paso de 0.5.
-
-    Args:
-        df (pd.DataFrame): DataFrame con los datos de los pallets asignados.
-
-    Returns:
-        plotly.graph_objects.Figure: Gráfica interactiva de LDF, LDA y Bulk.
-    """
-    # Filtrar pallets en LDF, LDA y Bulk
     df_lower = df[df["Bodega"].isin(["LDF", "LDA", "BULK"])].copy()
     if df_lower.empty:
         st.warning("No hay pallets asignados en LDF, LDA o Bulk.")
         return None
 
-    # Validar columnas necesarias
-    required_columns = ["X-arm", "Y-arm", "Number ULD", "Posición Asignada", "Weight (KGS)", "ULD Final Destination", "Contour", "Bodega"]
+    required_columns = ["X-arm", "Y-arm", "Number ULD", "Posición Asignada", "Weight (KGS)", "ULD Final Destination", "Contour", "Bodega", "Notes"]
     missing_columns = [col for col in required_columns if col not in df_lower.columns]
     if missing_columns:
         st.error(f"Faltan columnas en el DataFrame: {', '.join(missing_columns)}")
         return None
 
-    # Eliminar filas con valores nulos o no numéricos en X-arm, Y-arm
     df_lower = df_lower.dropna(subset=["X-arm", "Y-arm", "Posición Asignada", "Weight (KGS)", "Bodega"])
     df_lower = df_lower[pd.to_numeric(df_lower["X-arm"], errors='coerce').notnull()]
     df_lower = df_lower[pd.to_numeric(df_lower["Y-arm"], errors='coerce').notnull()]
@@ -343,17 +283,12 @@ def plot_lower_decks(df):
         st.warning("No hay datos válidos para graficar en LDF, LDA o Bulk.")
         return None
 
-    # Crear una paleta de colores para destinos
     destinos = df_lower["ULD Final Destination"].astype(str).unique()
-    colors = px.colors.qualitative.Plotly
-    color_map = {dest: colors[i % len(colors)] for i, dest in enumerate(destinos)}
+    colors = plt.cm.tab10(np.linspace(0, 1, len(destinos)))
+    color_map = {dest: to_rgba(colors[i], alpha=0.6) for i, dest in enumerate(destinos)}
 
-    # Inicializar la figura
-    fig = go.Figure()
+    fig, ax = plt.subplots(figsize=(22, 6))
 
-    # Añadir pallets como rectángulos de 1.5x1.5 metros
-    shapes = []
-    annotations = []
     for _, row in df_lower.iterrows():
         try:
             x = float(row["X-arm"])
@@ -366,126 +301,49 @@ def plot_lower_decks(df):
             bodega = str(row["Bodega"])
             notas = str(row["Notes"]) if pd.notna(row["Notes"]) else "Sin notas"
 
-            # Tamaño del rectángulo: 1.5x1.5 metros
             width = 1.5
             height = 1.5
 
-            # Añadir rectángulo como forma
-            shapes.append(
-                dict(
-                    type="rect",
-                    x0=x - width / 2,
-                    y0=y - height / 2,
-                    x1=x + width / 2,
-                    y1=y + height / 2,
-                    fillcolor=color_map[destino],
-                    opacity=0.6,
-                    line=dict(color="black", width=1)
-                )
+            rect = patches.Rectangle(
+                (x - width / 2, y - height / 2),
+                width,
+                height,
+                linewidth=1,
+                edgecolor='gray',
+                facecolor=color_map[destino],
+                label=destino
             )
+            ax.add_patch(rect)
 
-            # Añadir anotación con la información
-            text = f"ULD: {uld}<br>Pos: {pos}<br>Peso: {peso:,.1f} kg<br>Dest: {destino}<br>Cont: {contorno}"
-            annotations.append(
-                dict(
-                    x=x,
-                    y=y,
-                    text=text,
-                    showarrow=False,
-                    font=dict(size=6, color="black"),
-                    align="center",
-                    xanchor="center",
-                    yanchor="middle"
-                )
-            )
+            max_text_width = int(width * 8)
+            wrapped_notas = textwrap.wrap(notas, width=max_text_width, break_long_words=True)[:3]
+            wrapped_notas = '\n'.join(wrapped_notas)
 
-            # Añadir punto para tooltip
-            fig.add_trace(
-                go.Scatter(
-                    x=[x],
-                    y=[y],
-                    mode="markers",
-                    marker=dict(size=1, opacity=0),
-                    hovertext=notas,
-                    hoverinfo="text",
-                    showlegend=False
-                )
-            )
+            line_height = height / 12
+            fontsize = 8
+            notes_fontsize = 7
+
+            ax.text(x, y + 3 * line_height, pos, ha='center', va='center', fontsize=fontsize, color='red', fontweight='bold', wrap=True, clip_on=True)
+            ax.text(x, y + 2 * line_height, uld, ha='center', va='center', fontsize=fontsize, color='black', fontweight='bold', wrap=True, clip_on=True)
+            ax.text(x, y + line_height, f"{peso:,.1f} kg", ha='center', va='center', fontsize=fontsize, color='black', fontweight='bold', wrap=True, clip_on=True)
+            ax.text(x, y, destino, ha='center', va='center', fontsize=fontsize, color='black', wrap=True, clip_on=True)
+            ax.text(x, y - line_height, contorno, ha='center', va='center', fontsize=fontsize, color='black', wrap=True, clip_on=True)
+            ax.text(x, y - height / 2 + line_height / 2, f"Notas: {wrapped_notas}", ha='center', va='bottom', fontsize=notes_fontsize, color='black', wrap=True, bbox=dict(facecolor='white', alpha=0.8, edgecolor='none', boxstyle='round,pad=0.3'), clip_on=True)
         except (ValueError, TypeError) as e:
             st.warning(f"Error al procesar pallet {uld}: {str(e)}")
             continue
 
-    # Separar regiones por bodega (líneas verticales según X-arm)
-    if not df_lower.empty:
-        x_ranges = {
-            "LDF": (df_lower[df_lower["Bodega"] == "LDF"]["X-arm"].min(), df_lower[df_lower["Bodega"] == "LDF"]["X-arm"].max()),
-            "LDA": (df_lower[df_lower["Bodega"] == "LDA"]["X-arm"].min(), df_lower[df_lower["Bodega"] == "LDA"]["X-arm"].max()),
-            "BULK": (df_lower[df_lower["Bodega"] == "BULK"]["X-arm"].min(), df_lower[df_lower["Bodega"] == "BULK"]["X-arm"].max())
-        }
-        y_max = 2.5
-        y_min = -2.5
+    ax.set_xlim(14, 55)
+    ax.set_ylim(-2.5, 2.5)
+    ax.set_yticks(np.arange(-2.5, 3.0, 0.5))
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    ax.set_title("Distribución de Pallets en LDF, LDA y Bulk")
+    ax.grid(True)
 
-        for bodega, (x_min, x_max) in x_ranges.items():
-            if pd.notna(x_min) and pd.notna(x_max):
-                # Línea izquierda
-                shapes.append(
-                    dict(
-                        type="line",
-                        x0=x_min-1,
-                        y0=y_min-1,
-                        x1=x_min-1,
-                        y1=y_max+1,
-                        line=dict(color="black", width=2, dash="dash")
-                    )
-                )
-                # Línea derecha
-                shapes.append(
-                    dict(
-                        type="line",
-                        x0=x_max+1,
-                        y0=y_min-1,
-                        x1=x_max+1,
-                        y1=y_max+1,
-                        line=dict(color="black", width=2, dash="dash")
-                    )
-                )
-                # Etiqueta de la bodega
-                annotations.append(
-                    dict(
-                        x=(x_min + x_max) / 2,
-                        y=y_max,
-                        text=bodega,
-                        showarrow=False,
-                        font=dict(size=12, color="black"),
-                        xanchor="center",
-                        yanchor="bottom"
-                    )
-                )
+    handles = [patches.Patch(color=color, label=destino, alpha=0.6) for destino, color in color_map.items()]
+    ax.legend(handles=handles, loc='upper right', fontsize=8)
 
-    # Configurar el layout
-    fig.update_layout(
-        title="Distribución de Pallets en LDF, LDA y Bulk",
-        xaxis=dict(title="X-arm (metros)", showgrid=True, range=[14, 55]),
-        yaxis=dict(title="Y-arm (metros)", showgrid=True, range=[-2.5, 2.5], dtick=0.5),
-        shapes=shapes,
-        annotations=annotations,
-        showlegend=False,
-        plot_bgcolor="white",
-        width=1000,
-        height=300
-    )
-
-    # Añadir leyenda de colores
-    for destino, color in color_map.items():
-        fig.add_trace(
-            go.Scatter(
-                x=[None],
-                y=[None],
-                mode="markers",
-                marker=dict(size=10, color=color),
-                name=destino,
-                showlegend=True
-            )
-        )
-
-    return fig
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close()

@@ -29,10 +29,10 @@ def sugerencias_final_con_fak(row, restricciones_df, tipo_carga):
 
     if "FAK" in notas or "FLIGHT" in notas or "FAK" in uld or "FLIGHT" in uld:
         return filter_positions(["51", "52", "53"])
-    if contour not in ["SBS", "BULK", "FAK", "", "CL", "CT"] and not contour.startswith("LD"):
+    if contour not in ["LD", "SBS", "BULK", "FAK", "", "P9", "CL", "CT"]:
         return filter_positions([contour])
     if contour == "P9" or "P9" in notas:
-        return filter_positions(["11"])  # P9 solo en posición 11
+        return filter_positions(["11"])
     if contour == "BULK":
         return filter_positions(["51", "52", "53"])
     if "CL" in notas or contour == "CL":
@@ -51,11 +51,10 @@ def sugerencias_final_con_fak(row, restricciones_df, tipo_carga):
         pos_sbs = restricciones_df[
             (restricciones_df["Position"].str.len() == 3) &
             (restricciones_df["Position"].str.endswith(("L", "R"))) &
-            (~restricciones_df["Position"].isin(["CFG", "FJG", "JLG", "CFR", "FJR", "JLR", "LPR"])) &
-            (restricciones_df["Bodega"] == "MD")  # Solo Main Deck
+            (~restricciones_df["Position"].isin(["CFG", "FJG", "JLG", "CFR", "FJR", "JLR", "LPR"]))
         ]
         return filter_positions(pos_sbs["Position"].tolist())
-    if contour == "LD" or contour.startswith("LD"):
+    if contour == "LD":
         pos_ld = restricciones_df[
             (restricciones_df["Bodega"].isin(["LDF", "LDA"])) &
             (restricciones_df["Pallet_Base_size_Allowed"].str.contains(base_code))
@@ -99,6 +98,11 @@ def update_position_values(df, idx, new_position, restricciones_df, tipo_carga, 
     df.at[idx, "Momento Y"] = round(y_arm * row["Weight (KGS)"], 3)
     df.at[idx, "Posición Asignada"] = new_position
     df.at[idx, "Bodega"] = restric["Bodega"].values[0]
+    
+    # Actualizar posiciones sugeridas de otros pallets
+    for i in df.index:
+        if i != idx and isinstance(df.at[i, "Posiciones Sugeridas"], list):
+            df.at[i, "Posiciones Sugeridas"] = [pos for pos in df.at[i, "Posiciones Sugeridas"] if pos != new_position]
     
     return True
 
@@ -194,34 +198,31 @@ def calculate_final_values(
     aircraft_mzfw,
     performance_tow,
     trimset_df,
-    fuel_distribution=None,  # Nuevo parámetro
-    fuel_mode="Automático"  # Nuevo parámetro
+    fuel_distribution=None,
+    fuel_mode="Automático"
 ):
     momento_x_total = df_asignados["Momento X"].sum()
     momento_y_total = df_asignados["Momento Y"].sum()
     peso_total = df_asignados["Weight (KGS)"].sum()
 
-    # Calcular ZFW
     zfw_peso = bow + peso_total
     zfw_momento_x = bow_moment_x + momento_x_total
     zfw_momento_y = bow_moment_y + momento_y_total
     zfw_cg_x = round(zfw_momento_x / zfw_peso, 3) if zfw_peso != 0 else 0
-    zfw_mac = round(((zfw_cg_x - lemac) / mac_length) * 1, 1)  # Convertir a %MAC (multiplicar por 100)
+    zfw_mac = round(((zfw_cg_x - lemac) / mac_length) * 1, 1)
 
-    # Calcular TOW
     tow = bow + peso_total + fuel_kg - taxi_fuel
     tow_momento_x = bow_moment_x + momento_x_total + moment_x_fuel_tow
     tow_momento_y = bow_moment_y + momento_y_total + moment_y_fuel_tow
     tow_cg_x = round(tow_momento_x / tow, 3) if tow != 0 else 0
-    tow_mac = round(((tow_cg_x - lemac) / mac_length) * 1, 1)  # Convertir a %MAC (multiplicar por 100)
+    tow_mac = round(((tow_cg_x - lemac) / mac_length) * 1, 1)
     mrow = tow + taxi_fuel
 
-    # Calcular LW
     lw = bow + peso_total + fuel_kg - taxi_fuel - trip_fuel
     lw_momento_x = bow_moment_x + momento_x_total + moment_x_fuel_lw
     lw_momento_y = bow_moment_y + momento_y_total + moment_y_fuel_lw
     lw_cg_x = round(lw_momento_x / lw, 3) if lw != 0 else 0
-    lw_mac = round(((lw_cg_x - lemac) / mac_length) * 1, 1)  # Convertir a %MAC (multiplicar por 100)
+    lw_mac = round(((lw_cg_x - lemac) / mac_length) * 1, 1)
 
     lateral_imbalance = abs(tow_momento_y)
     underload = min(aircraft_mtoc, performance_tow) - bow - (fuel_kg - taxi_fuel) - peso_total
@@ -229,7 +230,6 @@ def calculate_final_values(
     trimset_row = trimset_df.iloc[(trimset_df.iloc[:, 0] - tow_mac).abs().argsort()[0]]
     pitch_trim = trimset_row.iloc[1]
 
-    # Devolver los resultados, incluyendo la distribución de combustible y el modo
     return {
         "peso_total": peso_total,
         "zfw_peso": zfw_peso,
@@ -248,6 +248,6 @@ def calculate_final_values(
         "lateral_imbalance": lateral_imbalance,
         "underload": underload,
         "pitch_trim": pitch_trim,
-        "fuel_distribution": fuel_distribution,  # Incluir la distribución de combustible
-        "fuel_mode": fuel_mode  # Incluir el modo de combustible
+        "fuel_distribution": fuel_distribution,
+        "fuel_mode": fuel_mode
     }

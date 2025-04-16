@@ -1,0 +1,483 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import json
+import os
+from datetime import datetime
+from io import StringIO, BytesIO
+import copy
+
+# Bandera para rastrear si weasyprint está disponible
+WEASYPRINT_AVAILABLE = False
+try:
+    from weasyprint import HTML
+    WEASYPRINT_AVAILABLE = True
+except ImportError:
+    st.warning("El módulo 'weasyprint' no está instalado. La funcionalidad de exportar a PDF no estará disponible. Instale con 'pip install weasyprint'.")
+
+try:
+    from utils import load_csv_with_fallback, clasificar_base_refinada
+    from calculations import sugerencias_final_con_fak, check_cumulative_weights, calculate_final_values
+    from manual_calculation import manual_assignment
+    from automatic_calculation import automatic_assignment
+    from visualizations import print_final_summary, plot_main_deck, plot_lower_decks
+    from data_models import FlightData, AircraftData, CalculationState, FinalResults
+except ImportError as e:
+    st.error(f"Error al importar módulos: {str(e)}. Verifique que todos los archivos necesarios estén en el directorio correcto.")
+    st.stop()
+
+# Directorio base
+script_dir = os.path.dirname(os.path.abspath(__file__))
+base_dir = script_dir
+aircraft_db_path = os.path.join(base_dir, "General_aircraft_database.csv")
+
+def generate_pdf_content(flight_data, aircraft_data, final_results, validation_df, df_asignados, active_restrictions):
+    """Genera el contenido HTML para el PDF desde el Resumen Final hasta el final."""
+    html_content = """
+    <html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; font-size: 12px; }
+            .summary-box { border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; margin-bottom: 20px; background-color: #f8f9fa; }
+            .summary-title { font-size: 16px; font-weight: bold; color: #1f77b4; margin-bottom: 10px; }
+            .summary-item { font-size: 12px; margin: 5px 0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .success { color: green; font-weight: bold; }
+            .error { color: red; font-weight: bold; }
+            h4 { margin-top: 15px; }
+        </style>
+    </head>
+    <body>
+    """
+
+    # Resumen Final de Peso y Balance
+    html_content += """
+    <div class="summary-box">
+        <div class="summary-title">✈️ Resumen Final de Peso y Balance</div>
+        <div style="display: flex;">
+            <div style="width: 50%;">
+    """
+    html_content += f"""
+                <div class="summary-item"><b>Operador:</b> {flight_data.operador}</div>
+                <div class="summary-item"><b>Número de Vuelo:</b> {flight_data.numero_vuelo}</div>
+                <div class="summary-item"><b>Matrícula:</b> {flight_data.matricula}</div>
+                <div class="summary-item"><b>OEW:</b> {aircraft_data.oew:,.1f} kg</div>
+                <div class="summary-item"><b>BOW:</b> {st.session_state.calculation_state.bow:,.1f} kg</div>
+                <div class="summary-item"><b>Peso Total Carga:</b> {final_results['peso_total']:,.1f} kg</div>
+                <div class="summary-item"><b>ZFW:</b> {final_results['zfw_peso']:,.1f} kg (MAC: {final_results['zfw_mac']:,.1f}%)</div>
+                <div class="summary-item"><b>MZFW:</b> {aircraft_data.mzfw:,.1f} kg</div>
+                <div class="summary-item"><b>Underload:</b> {final_results['underload']:,.1f} kg</div>
+                <div class="summary-item"><b>MROW:</b> {final_results['mrow']:,.1f} kg (Límite: {aircraft_data.mrw_limit:,.1f} kg)</div>
+                <div class="summary-item"><b>Desbalance Lateral:</b> {final_results['lateral_imbalance']:,.1f} kg (Límite: {aircraft_data.lateral_imbalance_limit:,.1f} kg)</div>
+            </div>
+            <div style="width: 50%;">
+                <div class="summary-item"><b>Fecha:</b> {flight_data.fecha_vuelo}</div>
+                <div class="summary-item"><b>Hora:</b> {flight_data.hora_vuelo}</div>
+                <div class="summary-item"><b>Ruta:</b> {flight_data.ruta_vuelo}</div>
+                <div class="summary-item"><b>Revisión:</b> {flight_data.revision}</div>
+                <div class="summary-item"><b>TOW:</b> {final_results['tow']:,.1f} kg (MAC: {final_results['tow_mac']:,.1f}%)</div>
+                <div class="summary-item"><b>MTOW:</b> {aircraft_data.mtoc:,.1f} kg</div>
+                <div class="summary-item"><b>Trip Fuel:</b> {flight_data.trip_fuel:,.1f} kg</div>
+                <div class="summary-item"><b>LW:</b> {final_results['lw']:,.1f} kg (MAC: {final_results['lw_mac']:,.1f}%)</div>
+                <div class="summary-item"><b>MLW:</b> {aircraft_data.mlw:,.1f} kg</div>
+                <div class="summary-item"><b>Performance LW:</b> {flight_data.performance_lw:,.1f} kg</div>""" if flight_data.performance_lw > 0 else """<div class="summary-item"><b>Performance LW:</b> No especificado</div>"""
+    if not df_asignados.empty:
+        html_content += '<div class="summary-item"><b>Pallets por Destino:</b></div>'
+        destino_summary = df_asignados.groupby("ULD Final Destination")["Weight (KGS)"].sum().reset_index()
+        for _, row in destino_summary.iterrows():
+            html_content += f'<div class="summary-item"> - {row["ULD Final Destination"]}: {row["Weight (KGS)"]:,.1f} kg</div>'
+        html_content += '<div class="summary-item"><b>Pallets por Bodega:</b></div>'
+        bodega_summary = df_asignados.groupby("Bodega")["Weight (KGS)"].sum().reset_index()
+        for _, row in bodega_summary.iterrows():
+            html_content += f'<div class="summary-item"> - {row["Bodega"]}: {row["Weight (KGS)"]:,.1f} kg</div>'
+    else:
+        html_content += '<div class="summary-item"><b>Pallets por Destino:</b> - No hay pallets asignados.</div>'
+        html_content += '<div class="summary-item"><b>Pallets por Bodega:</b> - No hay pallets asignados.</div>'
+    html_content += """
+            </div>
+        </div>
+    </div>
+    """
+
+    # Condiciones de Despegue
+    html_content += """
+    <div class="summary-box">
+        <div class="summary-title">🛫 Condiciones de Despegue</div>
+        <div style="display: flex;">
+            <div style="width: 50%;">
+    """
+    html_content += f"""
+                <div class="summary-item"><b>Pista:</b> {flight_data.takeoff_runway}</div>
+                <div class="summary-item"><b>Condición de Pista:</b> {flight_data.rwy_condition}</div>
+                <div class="summary-item"><b>Flaps:</b> {flight_data.flaps_conf}</div>
+                <div class="summary-item"><b>Temperatura:</b> {flight_data.temperature} °C</div>
+            </div>
+            <div style="width: 50%;">
+                <div class="summary-item"><b>Aire Acondicionado:</b> {flight_data.air_condition}</div>
+                <div class="summary-item"><b>Antihielo:</b> {flight_data.anti_ice}</div>
+                <div class="summary-item"><b>QNH:</b> {flight_data.qnh} hPa</div>
+                <div class="summary-item"><b>Performance TOW:</b> {flight_data.performance_tow:,.1f} kg</div>""" if flight_data.performance_tow > 0 else """<div class="summary-item"><b>Performance TOW:</b> No especificado</div>"""
+    html_content += """
+            </div>
+        </div>
+    </div>
+    """
+
+    # Restricciones y Límites
+    html_content += """
+    <div class="summary-box">
+        <div class="summary-title">🚨 Restricciones y Límites</div>
+        <div style="display: flex;">
+            <div style="width: 50%;">
+    """
+    html_content += f"""
+                <div class="summary-item"><b>Underload:</b> {final_results['underload']:,.1f} kg</div>
+                <div class="summary-item"><b>MROW:</b> {final_results['mrow']:,.1f} kg (Límite: {aircraft_data.mrw_limit:,.1f} kg)</div>
+                <div class="summary-item"><b>Desbalance Lateral:</b> {final_results['lateral_imbalance']:,.1f} kg (Límite: {aircraft_data.lateral_imbalance_limit:,.1f} kg)</div>
+            </div>
+            <div style="width: 50%;">
+                <div class="summary-item"><b>Carga Máx. LW:</b> {(aircraft_data.mlw - st.session_state.calculation_state.bow - (flight_data.fuel_kg - flight_data.taxi_fuel - flight_data.trip_fuel)):,.1f} kg</div>
+                <div class="summary-item"><b>Carga Máx. TOW:</b> {(aircraft_data.mtoc - st.session_state.calculation_state.bow - (flight_data.fuel_kg - flight_data.taxi_fuel)):,.1f} kg</div>
+                <div class="summary-item"><b>Carga Máx. ZFW:</b> {(aircraft_data.mzfw - st.session_state.calculation_state.bow):,.1f} kg</div>
+                <div class="summary-item"><b>Pitch Trim:</b> {final_results['pitch_trim']:,.1f}</div>
+            </div>
+        </div>
+    </div>
+    """
+
+    # Combustible
+    html_content += """
+    <div class="summary-box">
+        <div class="summary-title">⛽ Combustible</div>
+        <div style="display: flex;">
+            <div style="width: 50%;">
+    """
+    html_content += f"""
+                <div class="summary-item"><b>Combustible en TOW:</b> {(flight_data.fuel_kg - flight_data.taxi_fuel):,.1f} kg</div>
+                <div class="summary-item"><b>Combustible en LW:</b> {(flight_data.fuel_kg - flight_data.taxi_fuel - flight_data.trip_fuel):,.1f} kg</div>
+                <div class="summary-item"><b>Ballast Fuel:</b> {flight_data.ballast_fuel:,.1f} kg</div>
+            </div>
+            <div style="width: 50%;">
+                <div class="summary-item"><b>Modo de Carga:</b> {st.session_state.calculation_state.fuel_mode}</div>
+                <div class="summary-item"><b>Distribución de Combustible:</b></div>
+    """
+    for tank, fuel in st.session_state.calculation_state.fuel_distribution.items():
+        html_content += f'<div class="summary-item"> - {tank}: {fuel:,.1f} kg</div>'
+    html_content += """
+            </div>
+        </div>
+    </div>
+    """
+
+    # Restricciones Temporales Activas
+    html_content += """
+    <div class="summary-box">
+        <div class="summary-title">📋 Restricciones Temporales Activas</div>
+    """
+    if active_restrictions.empty:
+        html_content += '<p>No hay restricciones temporales activas.</p>'
+    else:
+        html_content += '<table><tr><th>Posición</th><th>Bodega</th><th>Restricción Simétrica (kg)</th><th>Restricción Asimétrica (kg)</th></tr>'
+        for _, row in active_restrictions.iterrows():
+            html_content += f'<tr><td>{row["Position"]}</td><td>{row["Bodega"]}</td><td>{row["Temp_Restriction_Symmetric"]:,.1f}</td><td>{row["Temp_Restriction_Asymmetric"]:,.1f}</td></tr>'
+        html_content += '</table>'
+    html_content += '</div>'
+
+    # Estado de Cumplimiento
+    complies = final_results.get("complies", False)
+    html_content += """
+    <div class="summary-box">
+        <div class="summary-title">✅ Estado de Cumplimiento</div>
+    """
+    html_content += f'<p class="{"success" if complies else "error"}">{"Todas las restricciones acumulativas se cumplen." if complies else "Algunas restricciones acumulativas no se cumplen. Revise la validación de pesos acumulativos."}</p>'
+    html_content += '</div>'
+
+    # Validación de Pesos Acumulativos
+    html_content += """
+    <div class="summary-box">
+        <div class="summary-title">⚖️ Validación de Pesos Acumulativos</div>
+        <table><tr>
+    """
+    for col in validation_df.columns:
+        html_content += f'<th>{col}</th>'
+    html_content += '</tr>'
+    for _, row in validation_df.iterrows():
+        html_content += '<tr>'
+        for col in validation_df.columns:
+            value = row[col]
+            if isinstance(value, float) and not pd.isna(value):
+                value = f"{value:,.1f}"
+            elif pd.isna(value):
+                value = ""
+            html_content += f'<td>{value}</td>'
+        html_content += '</tr>'
+    html_content += '</table></div>'
+
+    # Envelope
+    html_content += """
+    <div class="summary-box">
+        <div class="summary-title">📊 Envelope</div>
+        <p>[Gráfica del Envelope no disponible en PDF. Consulte la aplicación para visualizarla.]</p>
+    </div>
+    """
+
+    # Loading Instruction Report
+    html_content += """
+    <div class="summary-box" id="loading_instruction_section">
+        <div class="summary-title">📋 Loading Instruction Report</div>
+    """
+    # Asignaciones Realizadas
+    html_content += '<h4>Asignaciones Realizadas:</h4><table><tr>'
+    for col in df_asignados.columns:
+        html_content += f'<th>{col}</th>'
+    html_content += '</tr>'
+    for _, row in df_asignados.iterrows():
+        html_content += '<tr>'
+        for col in df_asignados.columns:
+            value = row[col]
+            if isinstance(value, float) and not pd.isna(value):
+                value = f"{value:,.1f}"
+            elif pd.isna(value):
+                value = ""
+            html_content += f'<td>{value}</td>'
+        html_content += '</tr>'
+    html_content += '</table>'
+
+    # Pallets por Destino
+    html_content += '<h4>Pallets por Destino:</h4>'
+    if not df_asignados.empty:
+        destino_summary = df_asignados.groupby("ULD Final Destination").agg({
+            "Number ULD": "count",
+            "Weight (KGS)": "sum"
+        }).reset_index()
+        destino_summary.columns = ["Destino", "Cantidad de Pallets", "Peso Total (kg)"]
+        html_content += '<table><tr><th>Destino</th><th>Cantidad de Pallets</th><th>Peso Total (kg)</th></tr>'
+        for _, row in destino_summary.iterrows():
+            html_content += f'<tr><td>{row["Destino"]}</td><td>{row["Cantidad de Pallets"]}</td><td>{row["Peso Total (kg)"]:,.1f}</td></tr>'
+        html_content += '</table>'
+    else:
+        html_content += '<p>- No hay pallets asignados.</p>'
+
+    # Pallets por Bodega
+    html_content += '<h4>Pallets por Bodega:</h4>'
+    if not df_asignados.empty:
+        bodega_summary = df_asignados.groupby("Bodega").agg({
+            "Number ULD": "count",
+            "Weight (KGS)": "sum"
+        }).reset_index()
+        bodega_summary.columns = ["Bodega", "Cantidad de Pallets", "Peso Total (kg)"]
+        html_content += '<table><tr><th>Bodega</th><th>Cantidad de Pallets</th><th>Peso Total (kg)</th></tr>'
+        for _, row in bodega_summary.iterrows():
+            html_content += f'<tr><td>{row["Bodega"]}</td><td>{row["Cantidad de Pallets"]}</td><td>{row["Peso Total (kg)"]:,.1f}</td></tr>'
+        html_content += '</table>'
+    else:
+        html_content += '<p>- No hay pallets asignados.</p>'
+
+    # Gráficas
+    html_content += """
+    <h4>Distribución de Pallets en Main Deck:</h4>
+    <p>[Gráfica del Main Deck no disponible en PDF. Consulte la aplicación para visualizarla.]</p>
+    <h4>Distribución de Pallets en LDF, LDA y Bulk:</h4>
+    <p>[Gráfica de LDF/LDA/Bulk no disponible en PDF. Consulte la aplicación para visualizarla.]</p>
+    </div>
+    """
+
+    html_content += """
+    </body>
+    </html>
+    """
+    return html_content
+
+def weight_balance_calculation():
+    st.title("Sistema de Cálculo de Peso y Balance")
+
+    # Contenido principal en una sola columna
+    st.markdown('<div id="carga_datos_iniciales_section"></div>', unsafe_allow_html=True)
+    st.subheader("Carga de Datos Iniciales")
+    
+    default_flight_data = {
+        "operador": "",
+        "numero_vuelo": "",
+        "matricula": "",
+        "fecha_vuelo": "",
+        "hora_vuelo": "",
+        "ruta_vuelo": "",
+        "revision": "",
+        "destino_inicial": "",
+        "fuel_kg": 0.0,
+        "trip_fuel": 0.0,
+        "taxi_fuel": 0.0,
+        "tipo_carga": "Simétrico",
+        "takeoff_runway": "",
+        "rwy_condition": "Dry",
+        "flaps_conf": "1+F",
+        "temperature": 0.0,
+        "air_condition": "On",
+        "anti_ice": "Off",
+        "qnh": 1013.0,
+        "performance_tow": 0.0,
+        "performance_lw": 0.0,
+        "passengers_cockpit": 0,
+        "passengers_supernumerary": 0,
+        "ballast_fuel": 0.0
+    }
+    
+    default_calc_state = {
+        "df": None,
+        "posiciones_usadas": set(),
+        "rotaciones": {},
+        "bow": 0.0,
+        "bow_moment_x": 0.0,
+        "bow_moment_y": 0.0,
+        "moment_x_fuel_tow": 0.0,
+        "moment_y_fuel_tow": 0.0,
+        "moment_x_fuel_lw": 0.0,
+        "moment_y_fuel_lw": 0.0,
+        "passengers_cockpit_total_weight": 0.0,
+        "passengers_cockpit_total_moment_x": 0.0,
+        "passengers_supernumerary_total_weight": 0.0,
+        "passengers_supernumerary_total_moment_x": 0.0,
+        "fuel_distribution": {
+            "Outer Tank LH": 0.0,
+            "Outer Tank RH": 0.0,
+            "Inner Tank LH": 0.0,
+            "Inner Tank RH": 0.0,
+            "Center Tank": 0.0,
+            "Trim Tank": 0.0
+        },
+        "fuel_mode": "Automático"
+    }
+
+    if "json_imported" in st.session_state and st.session_state.json_imported:
+        try:
+            json_data = json.load(st.session_state.json_imported)
+            
+            flight_info = json_data.get("flight_info", {})
+            calculated_values = json_data.get("calculated_values", {})
+            passengers = json_data.get("passengers", {})
+            takeoff_conditions = json_data.get("takeoff_conditions", {})
+            manifest_data = json_data.get("manifest_data", [])
+            posiciones_usadas = set(json_data.get("posiciones_usadas", []))
+            rotaciones = json_data.get("rotaciones", {})
+            
+            default_flight_data.update({
+                "operador": flight_info.get("operador", ""),
+                "numero_vuelo": flight_info.get("numero_vuelo", ""),
+                "matricula": flight_info.get("matricula", ""),
+                "fecha_vuelo": flight_info.get("fecha_vuelo", ""),
+                "hora_vuelo": flight_info.get("hora_vuelo", ""),
+                "ruta_vuelo": flight_info.get("ruta_vuelo", ""),
+                "revision": flight_info.get("revision", ""),
+                "destino_inicial": flight_info.get("destino_inicial", ""),
+                "fuel_kg": calculated_values.get("fuel_kg", 0.0),
+                "trip_fuel": calculated_values.get("trip_fuel", 0.0),
+                "taxi_fuel": calculated_values.get("taxi_fuel", 0.0),
+                "tipo_carga": json_data.get("tipo_carga", "Simétrico").capitalize(),
+                "takeoff_runway": takeoff_conditions.get("runway", ""),
+                "rwy_condition": takeoff_conditions.get("rwy_condition", "Dry"),
+                "flaps_conf": takeoff_conditions.get("flaps_conf", "1+F"),
+                "temperature": takeoff_conditions.get("temperature", 0.0),
+                "air_condition": takeoff_conditions.get("air_condition", "On"),
+                "anti_ice": takeoff_conditions.get("anti_ice", "Off"),
+                "qnh": takeoff_conditions.get("qnh", 1013.0),
+                "performance_tow": takeoff_conditions.get("performance_tow", 0.0),
+                "performance_lw": takeoff_conditions.get("performance_lw", 0.0),
+                "passengers_cockpit": passengers.get("cockpit", 0),
+                "passengers_supernumerary": passengers.get("supernumerary", 0),
+                "ballast_fuel": calculated_values.get("ballast_fuel", 0.0)
+            })
+            
+            default_calc_state.update({
+                "df": pd.DataFrame(manifest_data) if manifest_data else None,
+                "posiciones_usadas": posiciones_usadas,
+                "rotaciones": rotaciones,
+                "bow": calculated_values.get("bow", 0.0),
+                "bow_moment_x": calculated_values.get("bow_moment_x", 0.0),
+                "bow_moment_y": calculated_values.get("bow_moment_y", 0.0),
+                "moment_x_fuel_tow": calculated_values.get("moment_x_fuel_tow", 0.0),
+                "moment_y_fuel_tow": calculated_values.get("moment_y_fuel_tow", 0.0),
+                "moment_x_fuel_lw": calculated_values.get("moment_x_fuel_lw", 0.0),
+                "moment_y_fuel_lw": calculated_values.get("moment_y_fuel_lw", 0.0),
+                "passengers_cockpit_total_weight": passengers.get("cockpit_weight", 0.0),
+                "passengers_cockpit_total_moment_x": passengers.get("cockpit_moment_x", 0.0),
+                "passengers_supernumerary_total_weight": passengers.get("supernumerary_weight", 0.0),
+                "passengers_supernumerary_total_moment_x": passengers.get("supernumerary_moment_x", 0.0),
+                "fuel_distribution": calculated_values.get("fuel_distribution", default_calc_state["fuel_distribution"]),
+                "fuel_mode": calculated_values.get("fuel_mode", "Automático")
+            })
+            
+            if default_calc_state["df"] is not None:
+                if "calculation_state" not in st.session_state:
+                    st.session_state.calculation_state = CalculationState(**default_calc_state)
+                else:
+                    st.session_state.calculation_state.df = default_calc_state["df"].copy()
+                    st.session_state.calculation_state.posiciones_usadas = default_calc_state["posiciones_usadas"].copy()
+                    st.session_state.calculation_state.rotaciones = default_calc_state["rotaciones"].copy()
+            
+            st.success("JSON cargado correctamente. Los campos han sido prellenados con los datos del archivo.")
+        except Exception as e:
+            st.error(f"Error al cargar el JSON: {str(e)}")
+            return
+
+    if not os.path.exists(aircraft_db_path):
+        st.error(f"No se encontró el archivo en: {aircraft_db_path}. Asegúrate de que el archivo exista en la ruta especificada.")
+        return
+    aircraft_db = pd.read_csv(aircraft_db_path, sep=";", decimal=",")
+    
+    tail = st.selectbox("Seleccione el 'Tail' de la aeronave", aircraft_db["Tail"].tolist(), index=aircraft_db["Tail"].tolist().index(default_flight_data["matricula"]) if default_flight_data["matricula"] in aircraft_db["Tail"].tolist() else 0)
+    aircraft_info = aircraft_db[aircraft_db["Tail"] == tail].iloc[0]
+    
+    aircraft_folder = os.path.normpath(os.path.join(base_dir, tail))
+    if not os.path.exists(aircraft_folder):
+        st.error(f"La carpeta {aircraft_folder} no existe.")
+        return
+
+    basic_data_path = os.path.join(aircraft_folder, "basic_data.csv")
+    if not os.path.exists(basic_data_path):
+        st.error(f"No se encontró el archivo en: {basic_data_path}. Asegúrate de que el archivo exista en la ruta especificada.")
+        return
+    basic_data = pd.read_csv(basic_data_path, sep=";", decimal=",")
+
+    st.markdown('<div id="restrictions_section"></div>', unsafe_allow_html=True)
+    st.subheader("Restricciones Temporales Activas")
+    restrictions_path = os.path.join(aircraft_folder, "MD_LD_BULK_restrictions.csv")
+    if not os.path.exists(restrictions_path):
+        st.error(f"No se encontró el archivo en: {restrictions_path}. Asegúrate de que el archivo exista en la ruta especificada.")
+        return
+    restricciones_df = pd.read_csv(restrictions_path, sep=";", decimal=",")
+    restricciones_df.columns = [col.strip().replace(" ", "_") for col in restricciones_df.columns]
+    restricciones_df["Temp_Restriction_Symmetric"] = pd.to_numeric(restricciones_df["Temp_Restriction_Symmetric"], errors="coerce").fillna(0)
+    restricciones_df["Temp_Restriction_Asymmetric"] = pd.to_numeric(restricciones_df["Temp_Restriction_Asymmetric"], errors="coerce").fillna(0)
+
+    active_restrictions = restricciones_df[
+        (restricciones_df["Temp_Restriction_Symmetric"] != 0) | (restricciones_df["Temp_Restriction_Asymmetric"] != 0)
+    ][["Position", "Bodega", "Temp_Restriction_Symmetric", "Temp_Restriction_Asymmetric"]]
+    
+    if active_restrictions.empty:
+        st.info(f"No hay restricciones temporales activas para la aeronave {tail}.")
+    else:
+        st.write(f"Restricciones temporales activas para la aeronave {tail}:")
+        st.dataframe(
+            active_restrictions,
+            column_config={
+                "Position": "Posición",
+                "Bodega": "Bodega",
+                "Temp_Restriction_Symmetric": "Restricción Temporal Simétrica (kg)",
+                "Temp_Restriction_Asymmetric": "Restricción Temporal Asimétrica (kg)"
+            },
+            use_container_width=True
+        )
+
+    exclusions_path = os.path.join(aircraft_folder, "exclusiones.csv")
+    if not os.path.exists(exclusions_path):
+        st.error(f"No se encontró el archivo en: {exclusions_path}. Asegúrate de que el archivo exista en la ruta especificada.")
+        return
+    exclusiones_df = pd.read_csv(exclusions_path, sep=";", decimal=",")
+    exclusiones_df.set_index(exclusiones_df.columns[0], inplace=True)
+
+    cumulative_restrictions_aft_path = os.path.join(aircraft_folder, "cummulative_restrictions_AFT.csv")
+    if not os.path.exists(cumulative_restrictions_aft_path):
+        st.error(f"No se encontró el archivo en: {cumulative_restrictions_aft_path}. Asegúrate de que el archivo exista en la ruta especificada.")
+        return
