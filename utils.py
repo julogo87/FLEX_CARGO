@@ -27,3 +27,29 @@ def clasificar_base_refinada(uld_code):
         return "FAK", "FAK"
     else:
         return "Desconocido", "?"
+def calculate_peso_maximo_efectivo(restric_row, tipo_carga):
+    """
+    Calcula el Peso Máximo Efectivo para una posición según tipo_carga.
+    
+    Args:
+        restric_row (pd.Series): Fila de restricciones_df con columnas Position, Symmetric_Max_Weight_(kg)_5%, etc.
+        tipo_carga (str): 'simétrico' o 'asimétrico'.
+    
+    Returns:
+        float: Peso Máximo Efectivo en kg.
+    """
+    if tipo_carga.lower() == "simétrico":
+        return (
+            restric_row["Temp_Restriction_Symmetric"]
+            if restric_row["Temp_Restriction_Symmetric"] != 0
+            else restric_row["Symmetric_Max_Weight_(kg)_5%"]
+        )
+    elif tipo_carga.lower() == "asimétrico":
+        return (
+            restric_row["Temp_Restriction_Asymmetric"]
+            if restric_row["Temp_Restriction_Asymmetric"] != 0
+            else restric_row["Asymmetric_Max_Weight_(kg)_5%"]
+        )
+    else:
+        print(f"Error: Tipo de carga no reconocido: {tipo_carga}")
+        return 0.0

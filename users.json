@@ -1,0 +1,20 @@
+[
+    {
+        "Usuario": "admin",
+        "Nombre Completo": "Administrador Principal",
+        "Cargo": "Ingeniero",
+        "Rol": "admin",
+        "Licencia": "LIC123",
+        "Password": "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",
+        "Active": true
+    },
+    {
+        "Usuario": "Julian Londono",
+        "Nombre Completo": "Julian Londoño",
+        "Cargo": "MAMA",
+        "Rol": "Manager",
+        "Licencia": "1128269321",
+        "Password": "28a59c42b00e049cb9258991a163f8d55459ebb224892adc2d8801310e717af9",
+        "Active": true
+    }
+]

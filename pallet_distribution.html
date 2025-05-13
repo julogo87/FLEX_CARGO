@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distribución de Pallets</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        .deck {
+            flex: 1;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .deck img {
+            max-width: 100%;
+            height: auto;
+        }
+        .deck h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Distribución de Pallets</h1>
+    <div class="container">
+        <div class="deck">
+            <h2>Main Deck (MD)</h2>
+            <img src='data:image/png;base64,[MAIN_DECK_BASE64]' alt='Main Deck'>
+        </div>
+        <div class="deck">
+            <h2>Lower Decks (LDF/LDA)</h2>
+            <img src='data:image/png;base64,[LOWER_DECKS_BASE64]' alt='Lower Decks'>
+        </div>
+    </div>
+</body>
+</html>

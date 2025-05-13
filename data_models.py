@@ -41,6 +41,8 @@ class AircraftData:
     mac_length: float
     mrw_limit: float
     lateral_imbalance_limit: float
+    ldf_limit: float  # Nuevo campo
+    lda_limit: float  # Nuevo campo
 
 @dataclass
 class CalculationState:
@@ -61,6 +63,27 @@ class CalculationState:
     fuel_distribution: Dict[str, float]
     fuel_mode: str
 
+@dataclass
+class FinalResults:
+    peso_total: float
+    zfw_peso: float
+    zfw_momento_x: float
+    zfw_momento_y: float
+    zfw_mac: float
+    tow: float
+    tow_momento_x: float
+    tow_momento_y: float
+    tow_mac: float
+    mrow: float
+    lw: float
+    lw_momento_x: float
+    lw_momento_y: float
+    lw_mac: float
+    lateral_imbalance: float
+    underload: float
+    pitch_trim: float
+    fuel_distribution: Dict[str, float]
+    fuel_mode: str
 @dataclass
 class FinalResults:
     peso_total: float

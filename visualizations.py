@@ -8,16 +8,14 @@ import textwrap
 
 def print_final_summary(
     df_asignados, operador, numero_vuelo, matricula, fecha_vuelo, hora_vuelo, ruta_vuelo, revision,
-    oew, bow, peso_total, zfw_peso, zfw_mac, mzfw, tow, tow_mac, mtow, trip_fuel, lw, lw_mac, mlw,
-    underload, mrow, takeoff_runway, flaps_conf, temperature, anti_ice, air_condition, lateral_imbalance,
-    max_payload_lw, max_payload_tow, max_payload_zfw, pitch_trim, complies, validation_df, fuel_table,
-    fuel_tow, fuel_lw, mrw_limit, lateral_imbalance_limit, fuel_distribution, fuel_mode,
-    ballast_fuel, performance_lw, qnh, rwy_condition, active_restrictions, performance_tow
+    oew, bow, add_removal_weight, adjusted_bow, peso_total, zfw_peso, zfw_mac, mzfw, tow, tow_mac, mtow, 
+    trip_fuel, lw, lw_mac, mlw, underload, mrow, takeoff_runway, flaps_conf, temperature, anti_ice, 
+    air_condition, lateral_imbalance, max_payload_lw, max_payload_tow, max_payload_zfw, pitch_trim, 
+    complies, validation_df, fuel_table, fuel_tow, fuel_lw, mrw_limit, lateral_imbalance_limit, 
+    fuel_distribution, fuel_mode, ballast_fuel, performance_lw, qnh, rwy_condition, active_restrictions, 
+    performance_tow, ldf_weight, ldf_limit, lda_weight, lda_limit, mzfw_formula=None, mtow_formula=None,
+    mrow_mac=0.0
 ):
-    """
-    Muestra un resumen final de los cálculos de peso y balance, organizado y visualmente atractivo.
-    """
-    # Estilo para un diseño más limpio
     st.markdown(
         """
         <style>
@@ -43,7 +41,6 @@ def print_final_summary(
         unsafe_allow_html=True
     )
 
-    # Información del Vuelo
     st.markdown('<div class="summary-box">', unsafe_allow_html=True)
     st.markdown('<div class="summary-title">✈️ Información del Vuelo</div>', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
@@ -58,26 +55,33 @@ def print_final_summary(
         st.markdown(f'<div class="summary-item"><b>Revisión:</b> {revision}</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Pesos Principales
     st.markdown('<div class="summary-box">', unsafe_allow_html=True)
     st.markdown('<div class="summary-title">⚖️ Pesos Principales</div>', unsafe_allow_html=True)
     col3, col4 = st.columns(2)
     with col3:
         st.markdown(f'<div class="summary-item"><b>OEW:</b> {oew:,.1f} kg</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>BOW:</b> {bow:,.1f} kg</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-item"><b>Peso Removido o Adicionado:</b> {add_removal_weight:,.1f} kg</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-item"><b>BOW Ajustado:</b> {adjusted_bow:,.1f} kg</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>Peso Total Carga:</b> {peso_total:,.1f} kg</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>ZFW:</b> {zfw_peso:,.1f} kg (MAC: {zfw_mac:,.1f}%)</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="summary-item"><b>MZFW:</b> {mzfw:,.1f} kg</div>', unsafe_allow_html=True)
+        if mzfw_formula:
+            st.markdown(f'<div class="summary-item"><b>MZFWD:</b> {mzfw:,.1f} kg ({mzfw_formula})</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="summary-item"><b>MZFW:</b> {mzfw:,.1f} kg</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-item"><b>MROW:</b> {mrow:,.1f} kg (MAC: {mrow_mac:,.1f}%)</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>TOW:</b> {tow:,.1f} kg (MAC: {tow_mac:,.1f}%)</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="summary-item"><b>MTOW:</b> {mtow:,.1f} kg</div>', unsafe_allow_html=True)
+        if mtow_formula:
+            st.markdown(f'<div class="summary-item"><b>MTOWD:</b> {mtow:,.1f} kg ({mtow_formula})</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="summary-item"><b>MTOW:</b> {mtow:,.1f} kg</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>Trip Fuel:</b> {trip_fuel:,.1f} kg</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>LW:</b> {lw:,.1f} kg (MAC: {lw_mac:,.1f}%)</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>MLW:</b> {mlw:,.1f} kg</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>Performance LW:</b> {performance_lw:,.1f} kg</div>' if performance_lw > 0 else '<div class="summary-item"><b>Performance LW:</b> No especificado</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-item"><b>Pitch Trim:</b> {pitch_trim:,.1f}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="summary-item"><b>Desbalance Lateral:</b> {lateral_imbalance:,.1f} kg (Límite: {lateral_imbalance_limit:,.1f} kg)</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-item"><b>Desbalance Lateral:</b> {lateral_imbalance:,.1f} kg.m (Límite: {lateral_imbalance_limit:,.1f} kg.m)</div>', unsafe_allow_html=True)
     with col4:
-        # Pallets por Destino
         st.markdown('<div class="summary-item"><b>Pallets por Destino:</b></div>', unsafe_allow_html=True)
         if not df_asignados.empty:
             destino_summary = df_asignados.groupby("ULD Final Destination")["Weight (KGS)"].sum().reset_index()
@@ -85,7 +89,6 @@ def print_final_summary(
                 st.markdown(f'<div class="summary-item"> - {row["ULD Final Destination"]}: {row["Weight (KGS)"]:,.1f} kg</div>', unsafe_allow_html=True)
         else:
             st.markdown('<div class="summary-item"> - No hay pallets asignados.</div>', unsafe_allow_html=True)
-        # Pallets por Bodega
         st.markdown('<div class="summary-item"><b>Pallets por Bodega:</b></div>', unsafe_allow_html=True)
         if not df_asignados.empty:
             bodega_summary = df_asignados.groupby("Bodega")["Weight (KGS)"].sum().reset_index()
@@ -93,11 +96,38 @@ def print_final_summary(
             for _, row in bodega_summary.iterrows():
                 st.markdown(f'<div class="summary-item"> - {row["Bodega"]}: {row["Weight (KGS)"]:,.1f} kg</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="summary-item"><b>Total:</b> {total_bodega_weight:,.1f} kg</div>', unsafe_allow_html=True)
+            pallets_imbalance = 0.0
+            relevant_pallets = df_asignados[
+                (df_asignados["Bodega"].isin(["MD", "LDA", "LDF"])) &
+                (df_asignados["Y-arm"] != 0)
+            ]
+            left_weight = relevant_pallets[relevant_pallets["Y-arm"] < 0]["Weight (KGS)"].sum()
+            right_weight = relevant_pallets[relevant_pallets["Y-arm"] > 0]["Weight (KGS)"].sum()
+            pallets_imbalance = abs(left_weight - right_weight)
+            st.markdown(f'<div class="summary-item"><b>Desbalance de Pallets (MD, LDA, LDF):</b> {pallets_imbalance:,.1f} kg</div>', unsafe_allow_html=True)
         else:
             st.markdown('<div class="summary-item"> - No hay pallets asignados.</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Condiciones de Despegue
+    st.markdown('<div class="summary-box">', unsafe_allow_html=True)
+    st.markdown('<div class="summary-title">📏 Límites de Peso por Bodega</div>', unsafe_allow_html=True)
+    col_bodega1, col_bodega2 = st.columns(2)
+    with col_bodega1:
+        st.markdown(f'<div class="summary-item"><b>Peso Total LDF:</b> {ldf_weight:,.1f} kg</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-item"><b>Límite LDF:</b> {ldf_limit:,.1f} kg</div>', unsafe_allow_html=True)
+        if ldf_weight > ldf_limit:
+            st.markdown('<div class="summary-item"><b>Estado:</b> <span style="color: red;">Excede el límite</span></div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="summary-item"><b>Estado:</b> <span style="color: green;">Dentro del límite</span></div>', unsafe_allow_html=True)
+    with col_bodega2:
+        st.markdown(f'<div class="summary-item"><b>Peso Total LDA:</b> {lda_weight:,.1f} kg</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-item"><b>Límite LDA:</b> {lda_limit:,.1f} kg</div>', unsafe_allow_html=True)
+        if lda_weight > lda_limit:
+            st.markdown('<div class="summary-item"><b>Estado:</b> <span style="color: red;">Excede el límite</span></div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="summary-item"><b>Estado:</b> <span style="color: green;">Dentro del límite</span></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
     st.markdown('<div class="summary-box">', unsafe_allow_html=True)
     st.markdown('<div class="summary-title">🛫 Condiciones de Despegue</div>', unsafe_allow_html=True)
     col5, col6 = st.columns(2)
@@ -113,7 +143,6 @@ def print_final_summary(
         st.markdown(f'<div class="summary-item"><b>Performance TOW:</b> {performance_tow:,.1f} kg</div>' if performance_tow > 0 else '<div class="summary-item"><b>Performance TOW:</b> No especificado</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Restricciones y Límites
     st.markdown('<div class="summary-box">', unsafe_allow_html=True)
     st.markdown('<div class="summary-title">🚨 Restricciones y Límites</div>', unsafe_allow_html=True)
     col7, col8 = st.columns(2)
@@ -128,7 +157,6 @@ def print_final_summary(
         
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Combustible
     st.markdown('<div class="summary-box">', unsafe_allow_html=True)
     st.markdown('<div class="summary-title">⛽ Combustible</div>', unsafe_allow_html=True)
     col9, col10 = st.columns(2)
@@ -143,7 +171,6 @@ def print_final_summary(
             st.markdown(f'<div class="summary-item"> - {tank}: {fuel:,.1f} kg</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Restricciones Temporales Activas
     st.markdown('<div class="summary-box">', unsafe_allow_html=True)
     st.markdown('<div class="summary-title">📋 Restricciones Temporales Activas</div>', unsafe_allow_html=True)
     if active_restrictions.empty:
@@ -161,16 +188,38 @@ def print_final_summary(
         )
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Estado de Cumplimiento
     st.markdown('<div class="summary-box">', unsafe_allow_html=True)
     st.markdown('<div class="summary-title">✅ Estado de Cumplimiento</div>', unsafe_allow_html=True)
     if complies:
-        st.success("Todas las restricciones acumulativas se cumplen.")
+        st.success("Todas las restricciones acumulativas y límites de bodega se cumplen.")
     else:
-        st.error("Algunas restricciones acumulativas no se cumplen. Revise la validación de pesos acumulativos.")
+        st.error("Algunas restricciones acumulativas o límites de bodega no se cumplen. Revise las validaciones correspondientes.")
     st.markdown('</div>', unsafe_allow_html=True)
 
-def plot_main_deck(df):
+    st.markdown('<div class="summary-box">', unsafe_allow_html=True)
+    st.markdown('<div class="summary-title">📊 Resumen de Carga Asignada</div>', unsafe_allow_html=True)
+    col_weight_cg, col_imbalance_cg, col_cg_values = st.columns(3)
+    with col_weight_cg:
+        total_carga = df_asignados["Weight (KGS)"].sum() if not df_asignados.empty else 0.0
+        st.markdown(f'<div class="summary-item"><b>Peso Total Carga Asignada:</b> {total_carga:,.1f} kg</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-item"><b>TOW CG:</b> {tow_mac:,.1f}% MAC</div>', unsafe_allow_html=True)
+    with col_imbalance_cg:
+        st.markdown(f'<div class="summary-item"><b>Desbalance Lateral:</b> {lateral_imbalance:,.1f} kg.m (Límite: {lateral_imbalance_limit:,.1f} kg.m)</div>', unsafe_allow_html=True)
+    with col_cg_values:
+        st.markdown(f'<div class="summary-item"><b>ZFW CG:</b> {zfw_mac:,.1f}% MAC</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="summary-item"><b>LW CG:</b> {lw_mac:,.1f}% MAC</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+def get_global_color_map(df):
+    if df.empty or "ULD Final Destination" not in df.columns:
+        return {}
+    
+    destinos = df["ULD Final Destination"].astype(str).unique()
+    colors = plt.cm.tab10(np.linspace(0, 1, len(destinos)))
+    color_map = {dest: to_rgba(colors[i], alpha=0.6) for i, dest in enumerate(destinos)}
+    return color_map
+
+def plot_main_deck(df, restricciones_df=None):
     df_md = df[df["Bodega"] == "MD"].copy()
     if df_md.empty:
         st.warning("No hay pallets asignados en Main Deck.")
@@ -191,11 +240,13 @@ def plot_main_deck(df):
         st.warning("No hay datos válidos para graficar en Main Deck.")
         return None
 
-    destinos = df_md["ULD Final Destination"].astype(str).unique()
-    colors = plt.cm.tab10(np.linspace(0, 1, len(destinos)))
-    color_map = {dest: to_rgba(colors[i], alpha=0.6) for i, dest in enumerate(destinos)}
+    color_map = get_global_color_map(df)
 
     fig, ax = plt.subplots(figsize=(22, 6))
+
+    if restricciones_df is not None:
+        valid_positions = restricciones_df[restricciones_df["Bodega"] == "MD"]["Position"].tolist()
+        df_md = df_md[df_md["Posición Asignada"].isin(valid_positions)]
 
     for _, row in df_md.iterrows():
         try:
@@ -207,6 +258,12 @@ def plot_main_deck(df):
             destino = str(row["ULD Final Destination"])
             contorno = str(row["Contour"])
             notas = str(row["Notes"]) if pd.notna(row["Notes"]) else "Sin notas"
+
+            max_weight = None
+            if restricciones_df is not None:
+                restr = restricciones_df[restricciones_df["Position"] == pos]
+                if not restr.empty:
+                    max_weight = restr["Symmetric_Max_Weight_(kg)_5%"].iloc[0] if row.get("tipo_carga", "").lower() == "simétrico" else restr["Asymmetric_Max_Weight_(kg)_5%"].iloc[0]
 
             if pos in ["CFR", "FJR", "JLR", "LPR"]:
                 width = 2
@@ -224,7 +281,7 @@ def plot_main_deck(df):
                 height,
                 linewidth=1,
                 edgecolor='gray',
-                facecolor=color_map[destino],
+                facecolor=color_map.get(destino, to_rgba('gray', alpha=0.6)),
                 label=destino
             )
             ax.add_patch(rect)
@@ -234,15 +291,15 @@ def plot_main_deck(df):
             wrapped_notas = '\n'.join(wrapped_notas)
 
             line_height = height / 12
-            fontsize = 9
-            notes_fontsize = 8
+            fontsize = 10
+            notes_fontsize = 9
 
             ax.text(x, y + 3 * line_height, pos, ha='center', va='center', fontsize=fontsize, color='red', fontweight='bold', wrap=True, clip_on=True)
             ax.text(x, y + 2 * line_height, uld, ha='center', va='center', fontsize=fontsize, color='black', fontweight='bold', wrap=True, clip_on=True)
             ax.text(x, y + line_height, f"{peso:,.1f} kg", ha='center', va='center', fontsize=fontsize, color='black', fontweight='bold', wrap=True, clip_on=True)
             ax.text(x, y, destino, ha='center', va='center', fontsize=fontsize, color='black', wrap=True, clip_on=True)
             ax.text(x, y - line_height, contorno, ha='center', va='center', fontsize=fontsize, color='black', wrap=True, clip_on=True)
-            ax.text(x, y - height / 2 + line_height / 2, f"Notas: {wrapped_notas}", ha='center', va='bottom', fontsize=notes_fontsize, color='black', wrap=True, bbox=dict(facecolor='white', alpha=0.8, edgecolor='none', boxstyle='round,pad=0.3'), clip_on=True)
+            ax.text(x, y - height / 2 + line_height / 2, f"{wrapped_notas}", ha='center', va='bottom', fontsize=notes_fontsize, color='black', wrap=True, bbox=dict(facecolor='white', alpha=0.8, edgecolor='none', boxstyle='round,pad=0.3'), clip_on=True)
         except (ValueError, TypeError) as e:
             st.warning(f"Error al procesar pallet {uld}: {str(e)}")
             continue
@@ -252,17 +309,16 @@ def plot_main_deck(df):
     ax.set_yticks(np.arange(-2.5, 3.0, 0.5))
     ax.set_xlabel("")
     ax.set_ylabel("")
-    ax.set_title("Distribución de Pallets en Main Deck")
+    ax.set_title("ULD Distribution Main Deck", fontsize=18, fontweight='bold')
     ax.grid(True)
 
     handles = [patches.Patch(color=color, label=destino, alpha=0.6) for destino, color in color_map.items()]
     ax.legend(handles=handles, loc='upper right', fontsize=8)
 
     plt.tight_layout()
-    st.pyplot(fig)
-    plt.close()
+    return fig
 
-def plot_lower_decks(df):
+def plot_lower_decks(df, restricciones_df=None):
     df_lower = df[df["Bodega"].isin(["LDF", "LDA", "BULK"])].copy()
     if df_lower.empty:
         st.warning("No hay pallets asignados en LDF, LDA o Bulk.")
@@ -283,11 +339,13 @@ def plot_lower_decks(df):
         st.warning("No hay datos válidos para graficar en LDF, LDA o Bulk.")
         return None
 
-    destinos = df_lower["ULD Final Destination"].astype(str).unique()
-    colors = plt.cm.tab10(np.linspace(0, 1, len(destinos)))
-    color_map = {dest: to_rgba(colors[i], alpha=0.6) for i, dest in enumerate(destinos)}
+    color_map = get_global_color_map(df)
 
     fig, ax = plt.subplots(figsize=(22, 6))
+
+    if restricciones_df is not None:
+        valid_positions = restricciones_df[restricciones_df["Bodega"].isin(["LDF", "LDA", "BULK"])]["Position"].tolist()
+        df_lower = df_lower[df_lower["Posición Asignada"].isin(valid_positions)]
 
     for _, row in df_lower.iterrows():
         try:
@@ -301,6 +359,12 @@ def plot_lower_decks(df):
             bodega = str(row["Bodega"])
             notas = str(row["Notes"]) if pd.notna(row["Notes"]) else "Sin notas"
 
+            max_weight = None
+            if restricciones_df is not None:
+                restr = restricciones_df[restricciones_df["Position"] == pos]
+                if not restr.empty:
+                    max_weight = restr["Symmetric_Max_Weight_(kg)_5%"].iloc[0] if row.get("tipo_carga", "").lower() == "simétrico" else restr["Asymmetric_Max_Weight_(kg)_5%"].iloc[0]
+
             width = 1.5
             height = 1.5
 
@@ -310,7 +374,7 @@ def plot_lower_decks(df):
                 height,
                 linewidth=1,
                 edgecolor='gray',
-                facecolor=color_map[destino],
+                facecolor=color_map.get(destino, to_rgba('gray', alpha=0.6)),
                 label=destino
             )
             ax.add_patch(rect)
@@ -320,15 +384,15 @@ def plot_lower_decks(df):
             wrapped_notas = '\n'.join(wrapped_notas)
 
             line_height = height / 12
-            fontsize = 8
-            notes_fontsize = 7
+            fontsize = 9
+            notes_fontsize = 8
 
             ax.text(x, y + 3 * line_height, pos, ha='center', va='center', fontsize=fontsize, color='red', fontweight='bold', wrap=True, clip_on=True)
             ax.text(x, y + 2 * line_height, uld, ha='center', va='center', fontsize=fontsize, color='black', fontweight='bold', wrap=True, clip_on=True)
             ax.text(x, y + line_height, f"{peso:,.1f} kg", ha='center', va='center', fontsize=fontsize, color='black', fontweight='bold', wrap=True, clip_on=True)
             ax.text(x, y, destino, ha='center', va='center', fontsize=fontsize, color='black', wrap=True, clip_on=True)
             ax.text(x, y - line_height, contorno, ha='center', va='center', fontsize=fontsize, color='black', wrap=True, clip_on=True)
-            ax.text(x, y - height / 2 + line_height / 2, f"Notas: {wrapped_notas}", ha='center', va='bottom', fontsize=notes_fontsize, color='black', wrap=True, bbox=dict(facecolor='white', alpha=0.8, edgecolor='none', boxstyle='round,pad=0.3'), clip_on=True)
+            ax.text(x, y - height / 2 + line_height / 2, f"{wrapped_notas}", ha='center', va='bottom', fontsize=notes_fontsize, color='black', wrap=True, bbox=dict(facecolor='white', alpha=0.8, edgecolor='none', boxstyle='round,pad=0.3'), clip_on=True)
         except (ValueError, TypeError) as e:
             st.warning(f"Error al procesar pallet {uld}: {str(e)}")
             continue
@@ -338,12 +402,84 @@ def plot_lower_decks(df):
     ax.set_yticks(np.arange(-2.5, 3.0, 0.5))
     ax.set_xlabel("")
     ax.set_ylabel("")
-    ax.set_title("Distribución de Pallets en LDF, LDA y Bulk")
+    ax.set_title("ULD Distribution Lower Deck", fontsize=18, fontweight='bold')
     ax.grid(True)
 
     handles = [patches.Patch(color=color, label=destino, alpha=0.6) for destino, color in color_map.items()]
     ax.legend(handles=handles, loc='upper right', fontsize=8)
 
     plt.tight_layout()
-    st.pyplot(fig)
-    plt.close()
+    return fig
+
+def print_load_summary(df_asignados, pallets_imbalance):
+    st.markdown('<div id="results_section"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="summary-box">', unsafe_allow_html=True)
+    st.markdown('<div class="summary-title">📊 Resumen de Carga Asignada</div>', unsafe_allow_html=True)
+    with st.expander("Ver Resumen de Carga Asignada", expanded=False):
+        st.markdown('<div class="summary-item"><b>Pallets por Destino:</b></div>', unsafe_allow_html=True)
+        if not df_asignados.empty:
+            destination_summary = df_asignados.groupby("ULD Final Destination").agg({
+                "Number ULD": "count",
+                "Weight (KGS)": "sum"
+            }).reset_index()
+            destination_summary.columns = ["Destino", "Número de ULDs", "Peso Total (kg)"]
+            st.dataframe(
+                destination_summary,
+                column_config={
+                    "Destino": st.column_config.TextColumn("Destino"),
+                    "Número de ULDs": st.column_config.NumberColumn("Número de ULDs"),
+                    "Peso Total (kg)": st.column_config.NumberColumn("Peso Total (kg)", format="%.1f")
+                },
+                use_container_width=True
+            )
+        else:
+            st.markdown('<div class="summary-item"> - No hay pallets asignados.</div>', unsafe_allow_html=True)
+
+        st.markdown('<div class="summary-item"><b>Pallets por Bodega:</b></div>', unsafe_allow_html=True)
+        if not df_asignados.empty:
+            bodega_summary = df_asignados.groupby("Bodega").agg({
+                "Number ULD": "count",
+                "Weight (KGS)": "sum"
+            }).reset_index()
+            bodega_summary.columns = ["Bodega", "Número de ULDs", "Peso Total (kg)"]
+            st.dataframe(
+                bodega_summary,
+                column_config={
+                    "Bodega": st.column_config.TextColumn("Bodega"),
+                    "Número de ULDs": st.column_config.NumberColumn("Número de ULDs"),
+                    "Peso Total (kg)": st.column_config.NumberColumn("Peso Total (kg)", format="%.1f")
+                },
+                use_container_width=True
+            )
+        else:
+            st.markdown('<div class="summary-item"> - No hay pallets asignados.</div>', unsafe_allow_html=True)
+
+        st.markdown(f'<div class="summary-item"><b>Desbalance de Pallets (MD, LDA, LDF):</b> {pallets_imbalance:,.1f} kg</div>', unsafe_allow_html=True)
+
+        st.markdown('<div class="summary-item"><b>Asignaciones Detalladas:</b></div>', unsafe_allow_html=True)
+        if not df_asignados.empty:
+            st.dataframe(
+                df_asignados[[
+                    "Number ULD", "Posición Asignada", "Bodega", "Weight (KGS)",
+                    "ULD Final Destination", "Contour", "Notes", "X-arm", "Y-arm",
+                    "Momento X", "Momento Y", "Rotated"
+                ]],
+                column_config={
+                    "Number ULD": st.column_config.TextColumn("Number ULD"),
+                    "Posición Asignada": st.column_config.TextColumn("Posición Asignada"),
+                    "Bodega": st.column_config.TextColumn("Bodega"),
+                    "Weight (KGS)": st.column_config.NumberColumn("Weight (KGS)", format="%.1f"),
+                    "ULD Final Destination": st.column_config.TextColumn("ULD Final Destination"),
+                    "Contour": st.column_config.TextColumn("Contour"),
+                    "Notes": st.column_config.TextColumn("Notes"),
+                    "X-arm": st.column_config.NumberColumn("X-arm", format="%.3f"),
+                    "Y-arm": st.column_config.NumberColumn("Y-arm", format="%.3f"),
+                    "Momento X": st.column_config.NumberColumn("Momento X", format="%.3f"),
+                    "Momento Y": st.column_config.NumberColumn("Momento Y", format="%.3f"),
+                    "Rotated": st.column_config.CheckboxColumn("Rotated")
+                },
+                use_container_width=True
+            )
+        else:
+            st.markdown('<div class="summary-item"> - No hay asignaciones detalladas.</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)

@@ -1,0 +1,96 @@
+{
+    "calculation_state": {
+        "df": [
+            {
+                "Contour": "",
+                "Number ULD": "",
+                "ULD Final Destination": "",
+                "Weight (KGS)": 0.0,
+                "Pieces": 0,
+                "Notes": "",
+                "Pallet Base Size": "Desconocido",
+                "Baseplate Code": "?",
+                "Posiciones Sugeridas": [],
+                "Posición Asignada": "AB",
+                "X-arm": 16.235,
+                "Y-arm": 0.0,
+                "Momento X": 0.0,
+                "Momento Y": 0.0,
+                "Bodega": "MD",
+                "Rotated": false
+            }
+        ],
+        "posiciones_usadas": [
+            "AB"
+        ],
+        "rotaciones": {
+            "": false
+        },
+        "bow": 110510.0,
+        "bow_moment_x": 3613677.0,
+        "bow_moment_y": 0,
+        "moment_x_fuel_tow": 1533.8,
+        "moment_y_fuel_tow": 0.0,
+        "moment_x_fuel_lw": 1533.8,
+        "moment_y_fuel_lw": 0.0,
+        "passengers_cockpit_total_weight": 0.0,
+        "passengers_cockpit_total_moment_x": 0.0,
+        "passengers_supernumerary_total_weight": 0.0,
+        "passengers_supernumerary_total_moment_x": 0.0,
+        "fuel_distribution": {
+            "Outer Tank LH": 0.0,
+            "Outer Tank RH": 0.0,
+            "Inner Tank LH": 25.0,
+            "Inner Tank RH": 25.0,
+            "Center Tank": 0.0,
+            "Trim Tank": 0.0
+        },
+        "fuel_mode": "Automático"
+    },
+    "normal_fuel": 0.0,
+    "ballast_fuel": 0.0,
+    "trip_fuel": 0.0,
+    "taxi_fuel": 0.0,
+    "fuel_mode": "Automático",
+    "tipo_carga": "Simétrico",
+    "destino_inicial": "",
+    "takeoff_runway": "",
+    "rwy_condition": "Dry",
+    "flaps_conf": "1+F",
+    "temperature": 0.0,
+    "air_condition": "Off",
+    "anti_ice": "Off",
+    "qnh": 1013.0,
+    "performance_tow": 0.0,
+    "performance_lw": 0.0,
+    "passengers_cockpit": 0,
+    "passengers_supernumerary": 0,
+    "csv_operador": "TAMPA CARGO",
+    "csv_numero_vuelo": "TPA",
+    "csv_matricula": "N342AV",
+    "csv_fecha_vuelo": "22/04/2025",
+    "csv_hora_vuelo": "14:48",
+    "csv_ruta_vuelo": "ORI-DES",
+    "csv_revision": "0",
+    "selected_tail": "N342AV",
+    "manifiesto_manual": [
+        {
+            "Contour": "",
+            "Number ULD": "",
+            "ULD Final Destination": "",
+            "Weight (KGS)": 0.0,
+            "Pieces": 0,
+            "Notes": "",
+            "Pallet Base Size": "Desconocido",
+            "Baseplate Code": "?",
+            "Posiciones Sugeridas": [],
+            "Posición Asignada": "",
+            "X-arm": null,
+            "Y-arm": null,
+            "Momento X": null,
+            "Momento Y": null,
+            "Bodega": null,
+            "Rotated": false
+        }
+    ]
+}
