@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import base64
 import time
 import requests
+import pythoncom
 from openpyxl import load_workbook
 from openpyxl.drawing.image import Image as OpenpyxlImage
 import matplotlib.pyplot as plt
@@ -1826,10 +1827,36 @@ def weight_balance_calculation():
                             file_name=os.path.basename(excel_save_path),
                             mime="application/vnd.ms-excel.sheet.macroEnabled.12"
                         )
+                    import win32com.client as win32
+                    pythoncom.CoInitialize()
 
+                    # Crear ruta para el PDF reemplazando .xlsm por .pdf
+                    pdf_save_path = excel_save_path.replace(".xlsm", ".pdf")
+
+                    # Iniciar Excel
+                    excel = win32.gencache.EnsureDispatch("Excel.Application")
+                    excel.Visible = False  # No mostrar ventana de Excel
+                    
+
+                    # Abrir el archivo recién guardado
+                    libro = excel.Workbooks.Open(excel_save_path)
+
+                    # Seleccionar la hoja que deseas exportar (por índice o nombre)
+                    hoja = libro.Sheets(1)  # Cambia a otro índice si deseas otra hoja
+
+                    # Exportar a PDF
+                    hoja.ExportAsFixedFormat(0, pdf_save_path)
+
+                    # Cerrar el libro sin guardar cambios
+                    libro.Close(SaveChanges=False)
+                    excel.Quit()
+
+                    
                     st.success(f"Documentos generados.")
+
+                                   
                 except Exception as e:
                     st.error(f"Error al generar los documentos: {str(e)}")
         else:
             st.warning("Presiona boton para exportar.")
-
+        
